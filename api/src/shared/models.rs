@@ -7,6 +7,18 @@ pub const FUSDT_PRECISION: f64 = 1000000.0;
 pub type Hash160 = String;
 pub type Address = String;
 
+pub const PAGE_DEFAULT: u32 = 0;
+pub const PER_PAGE_DEFAULT: u32 = 100;
+pub const PER_PAGE_LIMIT: u32 = 1000;
+
+#[derive(Deserialize)]
+pub struct PaginationParams {
+    pub page: Option<u32>,       // Page
+    pub per_page: Option<u32>,   // Number of items per page
+    pub order: Option<String>,   // "asc" or "desc"
+    pub sort_by: Option<String>, // Column to order
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Transaction {
     pub index: u64,

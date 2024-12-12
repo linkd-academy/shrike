@@ -1,6 +1,7 @@
 use lib::neo;
 use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
+use rusqlite::params;
 
 use crate::block::internals;
 use crate::error::Error;
@@ -43,11 +44,33 @@ pub fn get_transaction_internal(
 pub fn get_sender_transactions_internal(
     conn: &PooledConnection<SqliteConnectionManager>,
     address: String,
+    page: u32,
+    per_page: u32,
+    sort_by: Option<&str>,
+    order: Option<&str>,
 ) -> Result<TransactionList, Error> {
-    let sql = "SELECT * FROM transactions WHERE sender = ?";
-    let mut stmt = conn.prepare(sql).unwrap();
+    let order_clause = if let (Some(sort_by), Some(order)) = (sort_by, order) {
+        let valid_columns = vec!["id"];
+        if valid_columns.contains(&sort_by) {
+            format!("ORDER BY {} {}", sort_by, order)
+        } else {
+            return Err(Error {
+                error: format!("Invalid sort_by parameter: {}", sort_by),
+            });
+        }
+    } else {
+        String::new()
+    };
 
-    let mut rows = stmt.query([address]).unwrap();
+    let sql = format!(
+        "SELECT * FROM transactions WHERE sender = ? {} LIMIT ? OFFSET ?",
+        order_clause
+    );
+    let mut stmt = conn.prepare(sql.as_str()).unwrap();
+
+    let mut rows = stmt
+        .query(params![address, per_page, page * per_page])
+        .unwrap();
     let mut transactions = Vec::new();
 
     while let Some(row) = rows.next().unwrap() {
@@ -82,12 +105,35 @@ pub fn get_sender_transactions_internal(
 pub fn get_address_transfers_internal(
     conn: &PooledConnection<SqliteConnectionManager>,
     address: String,
+    page: u32,
+    per_page: u32,
+    sort_by: Option<&str>,
+    order: Option<&str>,
 ) -> Result<TxDataList, Error> {
-    let base64 = neo::address_to_base64(&address);
-    let sql = "SELECT * FROM transactions WHERE notifications LIKE ?";
-    let mut stmt = conn.prepare(sql).unwrap();
+    let order_clause = if let (Some(sort_by), Some(order)) = (sort_by, order) {
+        let valid_columns = vec!["id"];
+        if valid_columns.contains(&sort_by) {
+            format!("ORDER BY {} {}", sort_by, order)
+        } else {
+            return Err(Error {
+                error: format!("Invalid sort_by parameter: {}", sort_by),
+            });
+        }
+    } else {
+        String::new()
+    };
 
-    let mut rows = stmt.query([format!("%{}%", base64)]).unwrap();
+    let sql = format!(
+        "SELECT * FROM transactions WHERE notifications LIKE ? {} LIMIT ? OFFSET ?",
+        order_clause
+    );
+
+    let base64 = neo::address_to_base64(&address);
+    let mut stmt = conn.prepare(sql.as_str()).unwrap();
+
+    let mut rows = stmt
+        .query(params![format!("%{}%", base64), per_page, page * per_page])
+        .unwrap();
     let mut transactions = Vec::new();
 
     while let Some(row) = rows.next().unwrap() {

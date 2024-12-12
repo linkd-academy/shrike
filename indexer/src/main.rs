@@ -53,9 +53,9 @@ async fn run() -> Result<()> {
     info!("Welcome to Shrike!");
     info!("Checking for NeoGo..");
 
-    check_neogo(&config)
-        .await
-        .context("Failed to confirm NeoGo install")?;
+    // check_neogo(&config)
+    //     .await
+    //     .context("Failed to confirm NeoGo install")?;
 
     // make sure WAL journal mode is enabled
     db.set_to_wal().context("Failed to set to WAL")?;
@@ -101,23 +101,23 @@ async fn run() -> Result<()> {
 
     // spawn the node and wait for the sync to complete
     info!("Starting node sync..");
-    let start = SystemTime::now();
-    let (_stderr_out, handle, shutdown_tx) = run_node(config.height_limit)
-        .await
-        .context("Failed to sync node")?;
+    // let start = SystemTime::now();
+    // let (_stderr_out, handle, shutdown_tx) = run_node(config.height_limit)
+    //     .await
+    //     .context("Failed to sync node")?;
 
-    let sync_end = SystemTime::now();
-    let sync_duration = sync_end.duration_since(start)?;
-    info!("Sync completed in {} ms.", sync_duration.as_millis());
-    sleep(Duration::from_secs(2)).await;
+    // let sync_end = SystemTime::now();
+    // let sync_duration = sync_end.duration_since(start)?;
+    // info!("Sync completed in {} ms.", sync_duration.as_millis());
+    // sleep(Duration::from_secs(2)).await;
 
     // Launch indexer
     let indexer = Indexer::new(client, db, config);
     indexer.run().await?;
 
     // send the shutdown signal to the node and wait for it to exit
-    let _ = shutdown_tx.send(());
-    handle.await.context("Failed to kill node")?;
+    // let _ = shutdown_tx.send(());
+    // handle.await.context("Failed to kill node")?;
 
     Ok(())
 }

@@ -38,11 +38,18 @@ pub static CURRENT_STATS: Lazy<RwLock<ShrikeStats>> = Lazy::new(|| {
 pub fn get_stat_internal<T: rusqlite::types::FromSql>(
     conn: &PooledConnection<SqliteConnectionManager>,
     sql: &str,
-) -> T {
-    let mut stmt = conn.prepare(sql).unwrap();
+) -> Option<T> {
+    let mut stmt = conn.prepare(sql).expect("Failed to prepare statement");
     let total: Result<T, rusqlite::Error> = stmt.query_row([], |row| row.get(0));
 
-    total.unwrap()
+    match total {
+        Ok(value) => Some(value),
+        Err(rusqlite::Error::QueryReturnedNoRows) => None,
+        Err(e) => {
+            eprintln!("Database error: {:?} in query: {}", e, sql);
+            None
+        }
+    }
 }
 
 pub async fn set_stats_internal(pool: web::Data<ConnectionPool>) {
@@ -98,17 +105,17 @@ pub async fn set_stats_internal(pool: web::Data<ConnectionPool>) {
             current_week_addresses,
         );
 
-        let total_transactions = results.0.unwrap();
-        let total_contracts = results.4.unwrap();
+        let total_transactions = results.0.unwrap_or(0);
+        let total_contracts = results.4.unwrap_or(0);
 
         {
             let mut w = CURRENT_STATS.write().unwrap();
 
             w.total_blocks = blocks;
             w.total_transactions = total_transactions;
-            w.total_sysfee = results.1.unwrap();
-            w.total_transfers = results.2.unwrap();
-            w.total_senders = results.3.unwrap();
+            w.total_sysfee = results.1.unwrap_or(0.0);
+            w.total_transfers = results.2.unwrap_or(0);
+            w.total_senders = results.3.unwrap_or(0);
             w.total_contracts = total_contracts;
         }
 
@@ -116,69 +123,66 @@ pub async fn set_stats_internal(pool: web::Data<ConnectionPool>) {
             let mut w = CURRENT_NETWORK_STATISTICS.write().unwrap();
 
             w.total_transactions = total_transactions;
-            w.total_addresses = results.5.unwrap();
+            w.total_addresses = results.5.unwrap_or(0);
             w.total_contracts = total_contracts;
-            w.current_week_contracts = results.6.unwrap();
-            w.current_week_transactions = results.7.unwrap();
-            w.current_week_addresses = results.8.unwrap();
+            w.current_week_contracts = results.6.unwrap_or(0);
+            w.current_week_transactions = results.7.unwrap_or(0);
+            w.current_week_addresses = results.8.unwrap_or(0);
         }
-    } else {
-        // println!("No cache updated needed.")
     }
     println!("Stats refreshed. Current height is {}.", blocks);
 }
 
 pub fn get_blocks_internal(conn: &PooledConnection<SqliteConnectionManager>) -> u64 {
-    let sql = "SELECT id FROM blocks WHERE id=(SELECT max(id) FROM blocks)";
-    get_stat_internal::<u64>(conn, sql)
+    let sql = "SELECT COALESCE((SELECT max(id) FROM blocks), 0)";
+    get_stat_internal::<u64>(conn, sql).unwrap_or(0)
 }
 
 pub fn get_transactions_internal(conn: &PooledConnection<SqliteConnectionManager>) -> u64 {
-    let sql = "SELECT id FROM transactions WHERE id=(SELECT max(id) FROM transactions)";
-    get_stat_internal::<u64>(conn, sql)
+    let sql = "SELECT COALESCE((SELECT max(id) FROM transactions), 0)";
+    get_stat_internal::<u64>(conn, sql).unwrap_or(0)
 }
 
 pub fn get_sysfee_internal(conn: &PooledConnection<SqliteConnectionManager>) -> f64 {
-    let sql = "SELECT sum(sysfee) FROM transactions";
-    get_stat_internal::<f64>(conn, sql) / GAS_PRECISION
+    let sql = "SELECT COALESCE(sum(sysfee), 0) FROM transactions";
+    get_stat_internal::<f64>(conn, sql).unwrap_or(0.0) / GAS_PRECISION
 }
 
 pub fn get_transfers_internal(conn: &PooledConnection<SqliteConnectionManager>) -> u64 {
-    let sql = "SELECT SUM(LENGTH(notifications) - LENGTH(REPLACE(notifications, 'Transfer', ''))) / 8 FROM transactions WHERE notifications LIKE '%Transfer%'";
-    get_stat_internal::<u64>(conn, sql)
+    let sql = "SELECT COALESCE(SUM(LENGTH(notifications) - LENGTH(REPLACE(notifications, 'Transfer', ''))) / 8, 0) FROM transactions WHERE notifications LIKE '%Transfer%'";
+    get_stat_internal::<u64>(conn, sql).unwrap_or(0)
 }
 
 pub fn get_senders_internal(conn: &PooledConnection<SqliteConnectionManager>) -> u64 {
-    let sql = "SELECT COUNT(DISTINCT sender) FROM transactions";
-    get_stat_internal::<u64>(conn, sql)
+    let sql = "SELECT COALESCE(COUNT(DISTINCT sender), 0) FROM transactions";
+    get_stat_internal::<u64>(conn, sql).unwrap_or(0)
 }
 
 pub fn get_contracts_internal(conn: &PooledConnection<SqliteConnectionManager>) -> u64 {
-    let sql = "SELECT COUNT() FROM contracts";
-
+    let sql = "SELECT COALESCE(COUNT(*), 0) FROM contracts";
     let native_contracts_count = 9; // fetch natives properly in future
-    get_stat_internal::<u64>(conn, &sql) + native_contracts_count
+    get_stat_internal::<u64>(conn, sql).unwrap_or(0) + native_contracts_count
 }
 
 pub fn get_addresses_internal(conn: &PooledConnection<SqliteConnectionManager>) -> u64 {
-    let sql = "SELECT COUNT(DISTINCT address) FROM addresses";
-    get_stat_internal::<u64>(conn, sql)
+    let sql = "SELECT COALESCE(COUNT(DISTINCT address), 0) FROM addresses";
+    get_stat_internal::<u64>(conn, sql).unwrap_or(0)
 }
 
 pub fn get_contracts_current_week_internal(
     conn: &PooledConnection<SqliteConnectionManager>,
 ) -> u64 {
-    let sql = "SELECT COUNT(*) 
+    let sql = "SELECT COALESCE(COUNT(*), 0) 
         FROM contracts 
         INNER JOIN blocks ON blocks.id = block_index 
         WHERE time >= strftime('%s', 'now', '-7 days') * 1000";
-    get_stat_internal::<u64>(conn, sql)
+    get_stat_internal::<u64>(conn, sql).unwrap_or(0)
 }
 
 pub fn get_addresses_current_week_internal(
     conn: &PooledConnection<SqliteConnectionManager>,
 ) -> u64 {
-    let sql = "SELECT COUNT(*) 
+    let sql = "SELECT COALESCE(COUNT(*), 0) 
         FROM addresses AS a
         WHERE a.block_index IN (
             SELECT b.id
@@ -192,15 +196,15 @@ pub fn get_addresses_current_week_internal(
             WHERE a2.address = a.address
             AND b2.time < strftime('%s', 'now', '-7 days') * 1000
         )";
-    get_stat_internal::<u64>(conn, sql)
+    get_stat_internal::<u64>(conn, sql).unwrap_or(0)
 }
 
 pub fn get_transactions_current_week_internal(
     conn: &PooledConnection<SqliteConnectionManager>,
 ) -> u64 {
-    let sql = "SELECT COUNT(*) 
+    let sql = "SELECT COALESCE(COUNT(*), 0) 
         FROM transactions 
         INNER JOIN blocks ON blocks.id = block_index 
         WHERE time >= strftime('%s', 'now', '-7 days') * 1000";
-    get_stat_internal::<u64>(conn, sql)
+    get_stat_internal::<u64>(conn, sql).unwrap_or(0)
 }
