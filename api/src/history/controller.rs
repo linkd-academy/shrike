@@ -1,0 +1,56 @@
+use actix_web::{get, web, HttpResponse, Responder};
+
+use crate::error::Error;
+use crate::shared::checker;
+use crate::shared::models::PaginationAndFilterParams;
+use crate::shared::utils::{normalize_filter, normalize_pagination};
+use crate::ConnectionPool;
+
+use super::internals;
+
+#[get("/v1/balance-history/{address}/{token}")]
+async fn list_balance_history(
+    pool: web::Data<ConnectionPool>,
+    path: web::Path<(String, String)>,
+    query_parameter: web::Query<PaginationAndFilterParams>,
+) -> impl Responder {
+    let (address, token) = path.into_inner();
+
+    if !checker::is_neo_address(&address) {
+        return HttpResponse::Ok().json(Error {
+            error: "Invalid address.".to_string(),
+        });
+    }
+
+    let (page, per_page, sort_by, order) = match normalize_pagination(&query_parameter) {
+        Ok(result) => result,
+        Err(response) => return response,
+    };
+
+    let (date_init, date_end) = match normalize_filter(&query_parameter) {
+        Ok(result) => result,
+        Err(response) => return response,
+    };
+
+    let conn = &pool.connection.get().unwrap();
+    let balance_history = internals::list_history_balance_internal(
+        conn,
+        address,
+        token,
+        page,
+        per_page,
+        sort_by.as_deref(),
+        order.as_deref(),
+        date_init,
+        date_end,
+    );
+
+    match balance_history {
+        Ok(tx) => HttpResponse::Ok().json(tx),
+        Err(err) => HttpResponse::Ok().json(err),
+    }
+}
+
+pub fn config(cfg: &mut web::ServiceConfig) {
+    cfg.service(list_balance_history);
+}

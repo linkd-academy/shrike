@@ -82,16 +82,11 @@ pub async fn set_stats_internal(pool: web::Data<ConnectionPool>) {
 
         let contracts = task::spawn_blocking(move || get_contracts_internal(&conn6));
 
-        let addresses = task::spawn_blocking(move || get_addresses_internal(&conn7));
-
         let current_week_contracts =
             task::spawn_blocking(move || get_contracts_current_week_internal(&conn8));
 
         let current_week_transactions =
             task::spawn_blocking(move || get_transactions_current_week_internal(&conn9));
-
-        let current_week_addresses =
-            task::spawn_blocking(move || get_addresses_current_week_internal(&conn10));
 
         let results = tokio::join!(
             transactions,
@@ -99,10 +94,8 @@ pub async fn set_stats_internal(pool: web::Data<ConnectionPool>) {
             transfers,
             senders,
             contracts,
-            addresses,
             current_week_contracts,
             current_week_transactions,
-            current_week_addresses,
         );
 
         let total_transactions = results.0.unwrap_or(0);
@@ -123,11 +116,9 @@ pub async fn set_stats_internal(pool: web::Data<ConnectionPool>) {
             let mut w = CURRENT_NETWORK_STATISTICS.write().unwrap();
 
             w.total_transactions = total_transactions;
-            w.total_addresses = results.5.unwrap_or(0);
             w.total_contracts = total_contracts;
-            w.current_week_contracts = results.6.unwrap_or(0);
-            w.current_week_transactions = results.7.unwrap_or(0);
-            w.current_week_addresses = results.8.unwrap_or(0);
+            w.current_week_contracts = results.5.unwrap_or(0);
+            w.current_week_transactions = results.6.unwrap_or(0);
         }
     }
     println!("Stats refreshed. Current height is {}.", blocks);
@@ -164,11 +155,6 @@ pub fn get_contracts_internal(conn: &PooledConnection<SqliteConnectionManager>) 
     get_stat_internal::<u64>(conn, sql).unwrap_or(0) + native_contracts_count
 }
 
-pub fn get_addresses_internal(conn: &PooledConnection<SqliteConnectionManager>) -> u64 {
-    let sql = "SELECT COALESCE(COUNT(DISTINCT address), 0) FROM addresses";
-    get_stat_internal::<u64>(conn, sql).unwrap_or(0)
-}
-
 pub fn get_contracts_current_week_internal(
     conn: &PooledConnection<SqliteConnectionManager>,
 ) -> u64 {
@@ -176,26 +162,6 @@ pub fn get_contracts_current_week_internal(
         FROM contracts 
         INNER JOIN blocks ON blocks.id = block_index 
         WHERE time >= strftime('%s', 'now', '-7 days') * 1000";
-    get_stat_internal::<u64>(conn, sql).unwrap_or(0)
-}
-
-pub fn get_addresses_current_week_internal(
-    conn: &PooledConnection<SqliteConnectionManager>,
-) -> u64 {
-    let sql = "SELECT COALESCE(COUNT(*), 0) 
-        FROM addresses AS a
-        WHERE a.block_index IN (
-            SELECT b.id
-            FROM blocks AS b
-            WHERE b.time >= strftime('%s', 'now', '-7 days') * 1000
-        )
-        AND NOT EXISTS (
-            SELECT 1 
-            FROM addresses AS a2
-            INNER JOIN blocks AS b2 ON a2.block_index = b2.id
-            WHERE a2.address = a.address
-            AND b2.time < strftime('%s', 'now', '-7 days') * 1000
-        )";
     get_stat_internal::<u64>(conn, sql).unwrap_or(0)
 }
 

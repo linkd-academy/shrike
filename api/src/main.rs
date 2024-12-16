@@ -1,5 +1,6 @@
 mod block;
 mod error;
+mod history;
 mod shared;
 mod stat;
 mod transaction;
@@ -56,6 +57,7 @@ async fn main() -> std::io::Result<()> {
             .configure(block::controller::config)
             .configure(transaction::controller::config)
             .configure(stat::controller::config)
+            .configure(history::controller::config)
     })
     .bind(("0.0.0.0", 8080))?
     .run()

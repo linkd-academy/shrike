@@ -2,7 +2,7 @@ use actix_web::{get, web, HttpResponse, Responder};
 
 use crate::error::Error;
 use crate::shared::checker;
-use crate::shared::models::PaginationParams;
+use crate::shared::models::PaginationAndFilterParams;
 use crate::shared::utils::normalize_pagination;
 use crate::ConnectionPool;
 
@@ -34,7 +34,7 @@ async fn get_transaction(
 async fn get_sender_transactions(
     pool: web::Data<ConnectionPool>,
     path: web::Path<String>,
-    query_parameter: web::Query<PaginationParams>,
+    query_parameter: web::Query<PaginationAndFilterParams>,
 ) -> impl Responder {
     let address = path.into_inner();
 
@@ -46,7 +46,7 @@ async fn get_sender_transactions(
 
     let (page, per_page, sort_by, order) = match normalize_pagination(&query_parameter) {
         Ok(result) => result,
-        Err(response) => return response, // Retorna erro se houver problema
+        Err(response) => return response,
     };
 
     let conn = &pool.connection.get().unwrap();
@@ -70,7 +70,7 @@ async fn get_sender_transactions(
 async fn get_address_transfers(
     pool: web::Data<ConnectionPool>,
     path: web::Path<String>,
-    query_parameter: web::Query<PaginationParams>,
+    query_parameter: web::Query<PaginationAndFilterParams>,
 ) -> impl Responder {
     let address = path.into_inner();
 
@@ -82,7 +82,7 @@ async fn get_address_transfers(
 
     let (page, per_page, sort_by, order) = match normalize_pagination(&query_parameter) {
         Ok(result) => result,
-        Err(response) => return response, // Retorna erro se houver problema
+        Err(response) => return response,
     };
 
     let conn = &pool.connection.get().unwrap();

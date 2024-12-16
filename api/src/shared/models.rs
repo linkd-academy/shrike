@@ -12,11 +12,14 @@ pub const PER_PAGE_DEFAULT: u32 = 100;
 pub const PER_PAGE_LIMIT: u32 = 1000;
 
 #[derive(Deserialize)]
-pub struct PaginationParams {
+pub struct PaginationAndFilterParams {
     pub page: Option<u32>,       // Page
     pub per_page: Option<u32>,   // Number of items per page
     pub order: Option<String>,   // "asc" or "desc"
     pub sort_by: Option<String>, // Column to order
+
+    pub date_init: Option<String>, // Filter date init
+    pub date_end: Option<String>,  // Filter date end
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -74,4 +77,13 @@ pub struct Event {
     pub contract: Hash160,
     pub eventname: String,
     pub state: serde_json::Value,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct DailyAddressBalance {
+    pub block_index: u64,
+    pub date: String,
+    pub address: String,
+    pub token_contract: String,
+    pub balance: i64,
 }
