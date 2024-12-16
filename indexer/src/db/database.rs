@@ -1,9 +1,9 @@
 use log::info;
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection, Result, ToSql};
 
 use crate::config::AppConfig;
 
-use super::model::{Address, Block, Contract, Transaction};
+use super::model::{Block, Contract, DailyAddressBalance, Transaction};
 
 pub struct Database {
     conn: Connection,
@@ -96,13 +96,16 @@ impl Database {
         Ok(result)
     }
 
-    pub fn create_address_table(&self) -> Result<usize> {
+    pub fn create_daily_address_balances(&self) -> Result<usize> {
         let result = self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS addresses (
+            "CREATE TABLE IF NOT EXISTS daily_address_balances (
             id                  INTEGER PRIMARY KEY AUTOINCREMENT,
             block_index         INTEGER NOT NULL,
+            date                TEXT NOT NULL,    
             address             TEXT NOT NULL,
-            balances            TEXT NOT NULL,
+            token_contract      TEXT NOT NULL,    
+            balance             INTEGER NOT NULL,
+            UNIQUE (date, address, token_contract), 
             FOREIGN KEY (block_index) REFERENCES blocks (id)
         )",
             [],
@@ -155,50 +158,73 @@ impl Database {
     pub fn insert_contracts(&self, contracts: impl Iterator<Item = Contract>) -> Result<()> {
         let tx = self.conn.unchecked_transaction()?;
 
-        let mut stmt = self.conn.prepare_cached(
-            "INSERT INTO contracts (
-            block_index, hash, contract_type
-        ) VALUES (?1, ?2, ?3)",
-        )?;
+        let mut values: Vec<String> = Vec::new();
+        let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
         for contract in contracts {
-            stmt.execute(params![
-                contract.block_index,
-                contract.hash,
-                contract.contract_type
-            ])?;
+            values.push("(?, ?, ?)".to_string());
+            params.push(Box::new(contract.block_index));
+            params.push(Box::new(contract.hash));
+            params.push(Box::new(contract.contract_type));
         }
 
-        let result = tx.commit();
-        if let Err(e) = result {
-            println!("Error committing transaction: {e:?}");
+        if !values.is_empty() {
+            let query = format!(
+                "INSERT INTO contracts (block_index, hash, contract_type) VALUES {}",
+                values.join(", ")
+            );
+
+            let params_ref: Vec<&dyn rusqlite::ToSql> = params.iter().map(|v| v.as_ref()).collect();
+
+            self.conn.execute(&query, &params_ref[..])?;
         }
 
+        tx.commit()?;
         Ok(())
     }
 
-    pub fn insert_addresses(&self, addresses: impl Iterator<Item = Address>) -> Result<()> {
+    pub fn persist_daily_address_balances(
+        &self,
+        balances: impl Iterator<Item = DailyAddressBalance>,
+    ) -> Result<()> {
         let tx = self.conn.unchecked_transaction()?;
 
-        let mut stmt = self.conn.prepare_cached(
-            "INSERT INTO addresses (
-            block_index, address, balances
-        ) VALUES (?1, ?2, ?3)",
-        )?;
+        let mut values: Vec<String> = Vec::new();
+        let mut params: Vec<Box<dyn ToSql>> = Vec::new();
 
-        for address in addresses {
-            stmt.execute(params![
-                address.block_index,
-                address.address,
-                address.balances
-            ])?;
+        for balance in balances {
+            values.push("(strftime('%Y-%m-%d', ? / 1000, 'unixepoch'), ?, ?, ?, ?)".to_string());
+
+            let date_i64 = i64::try_from(balance.date).map_err(|_| {
+                rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Failed to convert u64 to i64",
+                )))
+            })?;
+
+            params.push(Box::new(date_i64));
+            params.push(Box::new(balance.address.clone()));
+            params.push(Box::new(balance.token_contract.clone()));
+            params.push(Box::new(balance.balance));
+            params.push(Box::new(balance.block_index));
         }
 
-        let result = tx.commit();
-        if let Err(e) = result {
-            println!("Error committing transaction: {e:?}");
+        if !values.is_empty() {
+            let query = format!(
+                "INSERT INTO daily_address_balances (
+                    date, address, token_contract, balance, block_index
+                ) VALUES {} 
+                ON CONFLICT (date, address, token_contract) 
+                DO UPDATE SET balance = excluded.balance",
+                values.join(", ")
+            );
+
+            let params_ref: Vec<&dyn ToSql> = params.iter().map(|v| v.as_ref()).collect();
+
+            self.conn.execute(&query, &params_ref[..])?;
         }
 
+        tx.commit()?;
         Ok(())
     }
 
@@ -210,61 +236,80 @@ impl Database {
     ) -> Result<()> {
         let tx = self.conn.unchecked_transaction()?;
 
-        let mut block_stmt = self.conn.prepare_cached(
-            "INSERT INTO blocks (
-            hash, size, version, merkle_root, time,
-            nonce, speaker, next_consensus, reward, reward_receiver, witnesses
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-        )?;
+        // Preparação para inserção em blocos
+        let mut block_values = Vec::new();
+        let mut block_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
         for block in blocks {
-            block_stmt.execute(params![
-                block.hash,
-                block.size,
-                block.version,
-                block.merkle_root,
-                block.time,
-                block.nonce,
-                block.speaker,
-                block.next_consensus,
-                block.reward,
-                block.reward_receiver,
-                block.witnesses
-            ])?;
+            block_values.push("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string());
+            block_params.push(Box::new(block.hash));
+            block_params.push(Box::new(block.size));
+            block_params.push(Box::new(block.version));
+            block_params.push(Box::new(block.merkle_root));
+            block_params.push(Box::new(block.time));
+            block_params.push(Box::new(block.nonce));
+            block_params.push(Box::new(block.speaker));
+            block_params.push(Box::new(block.next_consensus));
+            block_params.push(Box::new(block.reward));
+            block_params.push(Box::new(block.reward_receiver));
+            block_params.push(Box::new(block.witnesses));
         }
 
-        let mut tx_stmt = self.conn.prepare_cached(
-            "INSERT INTO transactions (
-            hash, block_index, vm_state, size, version, nonce, sender, sysfee, netfee,
-            valid_until, signers, script, witnesses, stack_result, notifications
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
-        )?;
+        // Preparação para inserção em transações
+        let mut tx_values = Vec::new();
+        let mut tx_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
         for transaction in transactions {
-            let _ = tx_stmt.execute(params![
-                transaction.hash,
-                transaction.block_index,
-                transaction.vm_state,
-                transaction.size,
-                transaction.version,
-                transaction.nonce,
-                transaction.sender,
-                transaction.sysfee,
-                transaction.netfee,
-                transaction.valid_until,
-                transaction.signers,
-                transaction.script,
-                transaction.witnesses,
-                transaction.stack_result,
-                transaction.notifications
-            ]);
+            tx_values.push("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string());
+            tx_params.push(Box::new(transaction.hash));
+            tx_params.push(Box::new(transaction.block_index));
+            tx_params.push(Box::new(transaction.vm_state));
+            tx_params.push(Box::new(transaction.size));
+            tx_params.push(Box::new(transaction.version));
+            tx_params.push(Box::new(transaction.nonce));
+            tx_params.push(Box::new(transaction.sender));
+            tx_params.push(Box::new(transaction.sysfee));
+            tx_params.push(Box::new(transaction.netfee));
+            tx_params.push(Box::new(transaction.valid_until));
+            tx_params.push(Box::new(transaction.signers));
+            tx_params.push(Box::new(transaction.script));
+            tx_params.push(Box::new(transaction.witnesses));
+            tx_params.push(Box::new(transaction.stack_result));
+            tx_params.push(Box::new(transaction.notifications));
         }
 
-        let result = tx.commit();
-        if let Err(e) = result {
-            println!("Error committing transaction: {e:?}");
+        // Executa o bulk insert para blocos
+        if !block_values.is_empty() {
+            let block_query = format!(
+                "INSERT INTO blocks (
+                    hash, size, version, merkle_root, time, nonce, speaker, next_consensus, reward, reward_receiver, witnesses
+                ) VALUES {}",
+                block_values.join(", ")
+            );
+
+            let block_params_ref: Vec<&dyn rusqlite::ToSql> =
+                block_params.iter().map(|p| p.as_ref()).collect();
+
+            self.conn.execute(&block_query, &block_params_ref[..])?;
         }
 
+        // Executa o bulk insert para transações
+        if !tx_values.is_empty() {
+            let tx_query = format!(
+                "INSERT INTO transactions (
+                    hash, block_index, vm_state, size, version, nonce, sender, sysfee, netfee,
+                    valid_until, signers, script, witnesses, stack_result, notifications
+                ) VALUES {}",
+                tx_values.join(", ")
+            );
+
+            let tx_params_ref: Vec<&dyn rusqlite::ToSql> =
+                tx_params.iter().map(|p| p.as_ref()).collect();
+
+            self.conn.execute(&tx_query, &tx_params_ref[..])?;
+        }
+
+        tx.commit()?;
         Ok(())
     }
 

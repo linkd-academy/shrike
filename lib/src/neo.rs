@@ -635,6 +635,20 @@ pub fn reverse_hex(hex: &str) -> String {
     hex::encode(value)
 }
 
+pub fn address_to_hash160(address: &str) -> String {
+    let decoded = base58_to_bytes(address);
+
+    if decoded.len() != 25 {
+        panic!("Invalid address length");
+    }
+
+    let mut hash160 = decoded[1..21].to_vec();
+
+    hash160.reverse();
+
+    hex::encode(hash160)
+}
+
 pub fn bytes_to_base58(bytes: &[u8]) -> String {
     let zcount = bytes.iter().take_while(|x| **x == 0).count();
     let size = (bytes.len() - zcount) * 138 / 100 + 1;

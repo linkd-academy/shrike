@@ -1,5 +1,6 @@
 use anyhow::Context;
 use futures::future::join_all;
+use futures::future::try_join_all;
 use log::{error, info};
 use tokio::time::sleep;
 
@@ -8,7 +9,7 @@ use std::time::{Duration, SystemTime};
 use crate::config::AppConfig;
 use crate::db::database::Database;
 use crate::rpc::client::Client;
-use crate::rpc::models::TransactionResult;
+use crate::rpc::models::{NeoParam, TransactionResult};
 use crate::utils::{conversion, logger};
 pub struct Indexer {
     client: Client,
@@ -104,6 +105,7 @@ impl Indexer {
                                     TransactionResult {
                                         hash: tx.hash.clone(),
                                         blockhash: Some(block.hash.clone()),
+                                        timestamp: block.time,
                                         size: tx.size,
                                         version: tx.version,
                                         nonce: tx.nonce,
@@ -163,12 +165,29 @@ impl Indexer {
             )
         });
 
-        let prepped_addresses = prepped_tx.iter().flat_map(|transaction| {
+        let prepped_daily_balances = try_join_all(prepped_tx.iter().map(|transaction| async {
             conversion::convert_address_result(
                 serde_json::from_str(&transaction.notifications).unwrap(),
                 transaction.block_index,
+                transaction.timestamp,
+                &self.client,
             )
-        });
+            .await
+        }))
+        .await?
+        .into_iter()
+        .flatten();
+
+        // let script_hash = "d2a4cff31913016155e38e474a2c06d08be276cf";
+
+        // let address = "56c989e76f9a2ca05bb5caa6c96f524d905accd8"; // Endereço no formato Hash160
+
+        // let result = self
+        //     .client
+        //     .get_balance_of_historic(4000, script_hash, address)
+        //     .await?;
+
+        // println!("Result: {:?}", result);
 
         // synced rollback point
         self.db
@@ -180,8 +199,8 @@ impl Indexer {
             .context("Failed to insert contracts")?;
 
         self.db
-            .insert_addresses(prepped_addresses)
-            .context("Failed to insert addresses")?;
+            .persist_daily_address_balances(prepped_daily_balances)
+            .context("Failed to insert daily balances")?;
 
         Ok(())
     }

@@ -1,12 +1,14 @@
+use crate::rpc::client::Client;
+
 use lib::neo::{
-    base64_to_address, base64_to_hex, base64_to_script_hash, hex_decode, hex_to_base64,
-    neo3_disassemble,
+    address_to_hash160, base64_to_address, base64_to_hex, base64_to_script_hash, hex_decode,
+    hex_to_base64, neo3_disassemble,
 };
 use serde_json::to_string;
 
-use crate::db::model::{Address, Block, Contract, Transaction};
+use crate::db::model::{Block, Contract, DailyAddressBalance, Transaction};
 use crate::rpc::models::{
-    BlockAppLogResult, BlockResult, TransactionAppLogResult, TransactionResult,
+    BlockAppLogResult, BlockResult, ClientError, TransactionAppLogResult, TransactionResult,
 };
 
 pub fn convert_block_result(r: BlockResult, a: &BlockAppLogResult) -> Block {
@@ -48,6 +50,7 @@ pub fn convert_transaction_result(
     Transaction {
         hash: t.hash,
         block_index: block_height,
+        timestamp: t.timestamp,
         vm_state: state.to_string(),
         size: t.size,
         version: t.version,
@@ -111,12 +114,18 @@ pub fn convert_contract_result(
     return contracts;
 }
 
-pub fn convert_address_result(notifications: serde_json::Value, block_height: u64) -> Vec<Address> {
+pub async fn convert_address_result(
+    notifications: serde_json::Value,
+    block_height: u64,
+    timestamp: u64,
+    client: &Client,
+) -> Result<Vec<DailyAddressBalance>, ClientError> {
     let mut addresses = Vec::new();
 
     for notification in notifications.as_array().unwrap() {
         if notification["eventname"] == "Transfer" {
             let state = notification["state"].clone();
+            let token = notification["contract"].as_str().unwrap();
 
             if let (Some(sender_type), Some(recipient_type)) = (
                 state["value"][0]["type"].as_str(),
@@ -128,21 +137,55 @@ pub fn convert_address_result(notifications: serde_json::Value, block_height: u6
                     let recipient_address =
                         base64_to_address(state["value"][1]["value"].as_str().unwrap());
 
-                    addresses.push(Address {
+                    let sender_hash160 = address_to_hash160(&sender_address);
+                    let sender_response = client
+                        .get_balance_of_historic(block_height, token, &sender_hash160)
+                        .await?;
+                    let sender_balance: i64 = sender_response
+                        .stack
+                        .get(0) // Obtém o primeiro elemento do stack
+                        .and_then(|entry| entry.value.as_ref()) // Acessa o Option<serde_json::Value>
+                        .and_then(|val| {
+                            val.as_str()
+                                .and_then(|s| s.parse::<i64>().ok()) // Tenta converter string para i64
+                                .or_else(|| val.as_i64()) // Ou usa diretamente como i64, se aplicável
+                        })
+                        .unwrap_or(0); // Valor padrão caso falhe
+
+                    let receiver_hash160 = address_to_hash160(&recipient_address);
+                    let receiver_response = client
+                        .get_balance_of_historic(block_height, token, &receiver_hash160)
+                        .await?;
+                    let receiver_balance: i64 = receiver_response
+                        .stack
+                        .get(0) // Obtém o primeiro elemento do stack
+                        .and_then(|entry| entry.value.as_ref()) // Acessa o Option<serde_json::Value>
+                        .and_then(|val| {
+                            val.as_str()
+                                .and_then(|s| s.parse::<i64>().ok()) // Tenta converter string para i64
+                                .or_else(|| val.as_i64()) // Ou usa diretamente como i64, se aplicável
+                        })
+                        .unwrap_or(0); // Valor padrão caso falhe
+
+                    addresses.push(DailyAddressBalance {
                         block_index: block_height,
-                        address: sender_address,
-                        balances: "{}".to_string(),
+                        date: timestamp,
+                        address: sender_address.clone(),
+                        token_contract: token.to_string(),
+                        balance: sender_balance,
                     });
 
-                    addresses.push(Address {
+                    addresses.push(DailyAddressBalance {
                         block_index: block_height,
-                        address: recipient_address,
-                        balances: "{}".to_string(),
+                        date: timestamp,
+                        address: recipient_address.clone(),
+                        token_contract: token.to_string(),
+                        balance: receiver_balance,
                     });
                 }
             }
         }
     }
 
-    return addresses;
+    Ok(addresses)
 }

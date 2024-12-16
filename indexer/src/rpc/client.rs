@@ -3,10 +3,12 @@ use reqwest::Client as ReqwestClient;
 
 use crate::config::AppConfig;
 
-use super::method::{GetApplicationLog, GetBlock, GetBlockCount, RpcMethod};
+use super::method::{
+    GetApplicationLog, GetBlock, GetBlockCount, InvokeFunction, InvokeFunctionHistoric, RpcMethod,
+};
 use super::models::{
-    BlockAppLogResult, BlockResult, RpcRequest, RpcResponse, TransactionAppLogResult,
-    TransactionResult,
+    BlockAppLogResult, BlockResult, ClientError, Execution, NeoParam, RpcRequest, RpcResponse,
+    TransactionAppLogResult, TransactionResult,
 };
 
 pub struct Client {
@@ -25,21 +27,46 @@ impl Client {
     pub async fn send_request<T: RpcMethod, R: serde::de::DeserializeOwned>(
         &self,
         method: T,
-    ) -> Result<R, reqwest::Error> {
+    ) -> Result<R, ClientError> {
+        self.send_request_with_log(method, false).await
+    }
+
+    pub async fn send_request_with_log<T: RpcMethod, R: serde::de::DeserializeOwned>(
+        &self,
+        method: T,
+        with_log: bool,
+    ) -> Result<R, ClientError> {
         let request_body = RpcRequest {
             jsonrpc: "2.0".to_string(),
             id: 1,
             method: method.method_name().to_string(),
             params: method.params(),
         };
-        let response: RpcResponse<R> = self
+        if with_log {
+            println!(
+                "Request Body: {}",
+                serde_json::to_string_pretty(&request_body).unwrap()
+            );
+        }
+        let raw_response = self
             .client
             .post(&self.base_url)
             .json(&request_body)
             .send()
             .await?
-            .json()
+            .text()
             .await?;
+
+        if with_log {
+            match serde_json::from_str::<serde_json::Value>(&raw_response) {
+                Ok(parsed) => println!(
+                    "Response: {}",
+                    serde_json::to_string_pretty(&parsed).unwrap()
+                ),
+                Err(_) => println!("Raw Response: {}", raw_response),
+            }
+        }
+        let response: RpcResponse<R> = serde_json::from_str(&raw_response)?;
 
         Ok(response.result)
     }
@@ -85,5 +112,65 @@ impl Client {
         let tx_app_log: TransactionAppLogResult = self.get_application_log(&tx.hash).await?;
 
         Ok((tx, tx_app_log))
+    }
+
+    pub async fn invoke_function_historic(
+        &self,
+        state_root_or_block: u64,
+        script_hash: String,
+        operation: String,
+        args: Vec<NeoParam>,
+    ) -> Result<Execution, ClientError> {
+        let result = self
+            .send_request(InvokeFunctionHistoric {
+                state_root_or_block,
+                script_hash,
+                operation,
+                args,
+            })
+            .await?;
+
+        Ok(result)
+    }
+
+    pub async fn get_balance_of_historic(
+        &self,
+        state_root_or_block: u64,
+        script_hash: &str,
+        address: &str,
+    ) -> Result<Execution, ClientError> {
+        let args = vec![NeoParam::Object(vec![
+            ("type".to_string(), NeoParam::String("Hash160".to_string())),
+            ("value".to_string(), NeoParam::String(address.to_string())),
+        ])];
+
+        self.invoke_function_historic(
+            state_root_or_block,
+            script_hash.to_string(),
+            "balanceOf".to_string(),
+            args,
+        )
+        .await
+    }
+
+    pub async fn get_balance_of(
+        &self,
+        script_hash: &str,
+        address: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let args = vec![NeoParam::Object(vec![
+            ("type".to_string(), NeoParam::String("Hash160".to_string())),
+            ("value".to_string(), NeoParam::String(address.to_string())),
+        ])];
+
+        let response = self
+            .send_request(InvokeFunction {
+                script_hash: script_hash.to_string(),
+                operation: "balanceOf".to_string(),
+                args: args,
+            })
+            .await?;
+
+        Ok(response)
     }
 }

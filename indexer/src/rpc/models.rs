@@ -1,9 +1,13 @@
 use serde::{Deserialize, Serialize, Serializer};
+use thiserror::Error;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub enum NeoParam {
     String(String),
     Integer(u64),
+    Boolean(bool),
+    Array(Vec<NeoParam>),
+    Object(Vec<(String, NeoParam)>),
 }
 
 impl Serialize for NeoParam {
@@ -11,9 +15,20 @@ impl Serialize for NeoParam {
     where
         S: Serializer,
     {
-        match *self {
-            NeoParam::String(ref value) => serializer.serialize_str(value),
-            NeoParam::Integer(value) => serializer.serialize_u64(value),
+        match self {
+            NeoParam::String(value) => serializer.serialize_str(value),
+            NeoParam::Integer(value) => serializer.serialize_u64(*value),
+            NeoParam::Boolean(value) => serializer.serialize_bool(*value),
+            NeoParam::Array(value) => value.serialize(serializer),
+            NeoParam::Object(map) => {
+                use serde::ser::SerializeMap;
+
+                let mut map_serializer = serializer.serialize_map(Some(map.len()))?;
+                for (key, val) in map {
+                    map_serializer.serialize_entry(key, val)?;
+                }
+                map_serializer.end()
+            }
         }
     }
 }
@@ -24,6 +39,14 @@ pub struct RpcRequest {
     pub method: String,
     pub params: Vec<NeoParam>,
     pub id: u32,
+}
+
+#[derive(Error, Debug)]
+pub enum ClientError {
+    #[error("Request error: {0}")]
+    Reqwest(#[from] reqwest::Error),
+    #[error("Deserialization error: {0}")]
+    Serde(#[from] serde_json::Error),
 }
 
 #[derive(Deserialize, Debug)]
@@ -53,6 +76,8 @@ pub struct TransactionResult {
     pub hash: String,
     pub blockhash: Option<String>,
     pub size: u32,
+    #[serde(default)]
+    pub timestamp: u64,
     pub version: u8,
     pub nonce: u64,
     pub sender: String,
@@ -84,8 +109,11 @@ pub struct TransactionAppLogResult {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Execution {
+    #[serde(default)]
     pub trigger: String,
+    #[serde(default)]
     pub vmstate: String,
+    #[serde(default)]
     pub exception: Option<String>,
     pub gasconsumed: String,
     pub stack: Vec<StateValue>,

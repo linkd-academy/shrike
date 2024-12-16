@@ -2,6 +2,7 @@
 pub struct Transaction {
     pub hash: String,
     pub block_index: u64,
+    pub timestamp: u64,
     pub vm_state: String,
     pub size: u32,
     pub version: u8,
@@ -33,10 +34,12 @@ pub struct Block {
 }
 
 #[derive(Debug, Clone)]
-pub struct Address {
+pub struct DailyAddressBalance {
     pub block_index: u64,
+    pub date: u64,
     pub address: String,
-    pub balances: String,
+    pub token_contract: String,
+    pub balance: i64,
 }
 
 #[derive(Debug, Clone)]

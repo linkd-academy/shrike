@@ -65,8 +65,8 @@ async fn run() -> Result<()> {
         .context("Failed to create block table")?;
     db.create_transaction_table()
         .context("Failed to create transaction table")?;
-    db.create_address_table()
-        .context("Failed to create address table")?;
+    db.create_daily_address_balances()
+        .context("Failed to create daily_address_balances table")?;
     db.create_contract_table()
         .context("Failed to create contract table")?;
 
@@ -79,8 +79,18 @@ async fn run() -> Result<()> {
         .context("Failed to create txsender index")?;
     db.create_index("idx_transaction_block_index", "transactions", "block_index")
         .context("Failed to create transaction block index")?;
-    db.create_index("idx_address_address", "addresses", "address")
-        .context("Failed to create address index")?;
+    db.create_index(
+        "idx_daily_address_balances_address",
+        "daily_address_balances",
+        "address",
+    )
+    .context("Failed to create address index")?;
+    db.create_index(
+        "idx_daily_address_balances_date",
+        "daily_address_balances",
+        "date",
+    )
+    .context("Failed to create date index")?;
     db.create_index("idx_contract_hash", "contracts", "hash")
         .context("Failed to create contract index")?;
 
