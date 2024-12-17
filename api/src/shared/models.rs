@@ -87,3 +87,11 @@ pub struct DailyAddressBalance {
     pub token_contract: String,
     pub balance: i64,
 }
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct DailyTokenPrice {
+    pub block_index: u64,
+    pub date: String,
+    pub token_contract: String,
+    pub price: f64,
+}
