@@ -2,6 +2,7 @@ use log::info;
 use rusqlite::{params, Connection, Result, ToSql};
 
 use crate::config::AppConfig;
+use crate::flamingo::models::FlamingoPrice;
 
 use super::model::{Block, Contract, DailyAddressBalance, Transaction};
 
@@ -114,6 +115,23 @@ impl Database {
         Ok(result)
     }
 
+    pub fn create_daily_token_price_history(&self) -> Result<usize> {
+        let result = self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS daily_token_price_history (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            block_index         INTEGER NOT NULL,
+            date                TEXT NOT NULL,    
+            token_contract      TEXT NOT NULL,    
+            price               FLOAT NOT NULL,
+            UNIQUE (date, token_contract), 
+            FOREIGN KEY (block_index) REFERENCES blocks (id)
+        )",
+            [],
+        )?;
+
+        Ok(result)
+    }
+
     pub fn create_contract_table(&self) -> Result<usize> {
         let result = self.conn.execute(
             "CREATE TABLE IF NOT EXISTS contracts (
@@ -215,7 +233,46 @@ impl Database {
                     date, address, token_contract, balance, block_index
                 ) VALUES {} 
                 ON CONFLICT (date, address, token_contract) 
-                DO UPDATE SET balance = excluded.balance",
+                DO UPDATE SET balance = excluded.balance, block_index = excluded.block_index",
+                values.join(", ")
+            );
+
+            let params_ref: Vec<&dyn ToSql> = params.iter().map(|v| v.as_ref()).collect();
+
+            self.conn.execute(&query, &params_ref[..])?;
+        }
+
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn persist_daily_token_price_history(
+        &self,
+        prices_vec: Vec<Vec<FlamingoPrice>>,
+    ) -> Result<()> {
+        let tx = self.conn.unchecked_transaction()?;
+
+        let mut values: Vec<String> = Vec::new();
+        let mut params: Vec<Box<dyn ToSql>> = Vec::new();
+
+        for prices in prices_vec {
+            for price in prices {
+                values.push("(strftime('%Y-%m-%d', ? / 1000, 'unixepoch'), ?, ?, ?)".to_string());
+
+                params.push(Box::new(price.timestamp));
+                params.push(Box::new(price.hash));
+                params.push(Box::new(price.usd_price));
+                params.push(Box::new(price.block_index));
+            }
+        }
+
+        if !values.is_empty() {
+            let query = format!(
+                "INSERT INTO daily_token_price_history (
+                    date, token_contract, price, block_index
+                ) VALUES {} 
+                ON CONFLICT (date, token_contract) 
+                DO UPDATE SET price = excluded.price, block_index = excluded.block_index",
                 values.join(", ")
             );
 

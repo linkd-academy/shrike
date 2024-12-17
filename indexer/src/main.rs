@@ -6,6 +6,7 @@ use std::time::SystemTime;
 
 mod config;
 mod db;
+mod flamingo;
 mod rpc;
 mod spawn;
 mod utils;
@@ -67,6 +68,8 @@ async fn run() -> Result<()> {
         .context("Failed to create transaction table")?;
     db.create_daily_address_balances()
         .context("Failed to create daily_address_balances table")?;
+    db.create_daily_token_price_history()
+        .context("Failed to create daily_token_price_history table")?;
     db.create_contract_table()
         .context("Failed to create contract table")?;
 
@@ -91,6 +94,12 @@ async fn run() -> Result<()> {
         "date",
     )
     .context("Failed to create date index")?;
+    db.create_index(
+        "idx_daily_token_price_history_date",
+        "daily_token_price_history",
+        "date",
+    )
+    .context("Failed to create address index")?;
     db.create_index("idx_contract_hash", "contracts", "hash")
         .context("Failed to create contract index")?;
 

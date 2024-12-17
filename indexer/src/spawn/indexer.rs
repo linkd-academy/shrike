@@ -4,13 +4,17 @@ use futures::future::try_join_all;
 use log::{error, info};
 use tokio::time::sleep;
 
+use chrono::{DateTime, NaiveTime};
 use std::time::{Duration, SystemTime};
 
 use crate::config::AppConfig;
 use crate::db::database::Database;
+use crate::flamingo::client::FlamingoClient;
+use crate::flamingo::models::FlamingoPrice;
 use crate::rpc::client::Client;
-use crate::rpc::models::{NeoParam, TransactionResult};
+use crate::rpc::models::{BlockResult, TransactionResult};
 use crate::utils::{conversion, logger};
+
 pub struct Indexer {
     client: Client,
     db: Database,
@@ -90,6 +94,7 @@ impl Indexer {
     async fn sync_between(&self, start_height: u64, end_height: u64) -> Result<(), anyhow::Error> {
         let future_blocks = (start_height..end_height).map(|i| self.client.fetch_full_block(i));
         let all_blocks = join_all(future_blocks).await;
+        let all_blocks_ref = &all_blocks;
 
         // Have to clone to keep all_blocks unmoved for future steps
         let transactions_with_index: Vec<(TransactionResult, u64)> = all_blocks
@@ -140,6 +145,45 @@ impl Indexer {
         let all_transactions_with_index =
             all_transactions.into_iter().zip(block_indexes.into_iter());
 
+        let flamingo_min_block_number = 664000;
+        let time_threshold = NaiveTime::from_hms_opt(23, 59, 40).unwrap();
+
+        let filtered_flamingo_blocks: Vec<&BlockResult> = all_blocks_ref
+            .iter()
+            .filter_map(|result| result.as_ref().ok())
+            .map(|(block_result, _)| block_result)
+            .filter(|block| {
+                if let Some(datetime) = DateTime::from_timestamp_millis(block.time as i64) {
+                    let block_time: NaiveTime = datetime.time();
+                    block.index > flamingo_min_block_number && block_time > time_threshold
+                } else {
+                    false
+                }
+            })
+            .collect();
+
+        let fclient = FlamingoClient::new(None);
+        let flamingo_prices: Vec<Vec<FlamingoPrice>> =
+            join_all(filtered_flamingo_blocks.iter().map(|block| {
+                let fclient_ref = &fclient;
+
+                async move {
+                    fclient_ref
+                        .get_prices_from_block(block.index)
+                        // .get_prices_from_block(664000)
+                        .await
+                        .unwrap_or_else(|_| vec![])
+                        .into_iter()
+                        .map(|mut price| {
+                            price.block_index = Some(block.index);
+                            price.timestamp = Some(block.time as i64);
+                            price
+                        })
+                        .collect()
+                }
+            }))
+            .await;
+
         let prepped_blocks = all_blocks.into_iter().filter_map(|result| match result {
             Ok((b, a)) => Some(conversion::convert_block_result(b, &a)),
             Err(e) => {
@@ -178,17 +222,6 @@ impl Indexer {
         .into_iter()
         .flatten();
 
-        // let script_hash = "d2a4cff31913016155e38e474a2c06d08be276cf";
-
-        // let address = "56c989e76f9a2ca05bb5caa6c96f524d905accd8"; // Endereço no formato Hash160
-
-        // let result = self
-        //     .client
-        //     .get_balance_of_historic(4000, script_hash, address)
-        //     .await?;
-
-        // println!("Result: {:?}", result);
-
         // synced rollback point
         self.db
             .insert_blocks_transactions(prepped_blocks, prepped_tx.iter().cloned())
@@ -201,6 +234,10 @@ impl Indexer {
         self.db
             .persist_daily_address_balances(prepped_daily_balances)
             .context("Failed to insert daily balances")?;
+
+        self.db
+            .persist_daily_token_price_history(flamingo_prices)
+            .context("Failed to insert daily token price history")?;
 
         Ok(())
     }
