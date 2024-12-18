@@ -176,6 +176,21 @@ impl Database {
         Ok(result)
     }
 
+    pub fn create_daily_contract_usage(&self) -> Result<usize> {
+        let result = self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS daily_contract_usage (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            date                TEXT NOT NULL,    
+            contract            TEXT NOT NULL,    
+            usage               INTEGER NOT NULL,
+            UNIQUE (date, contract) 
+        )",
+            [],
+        )?;
+
+        Ok(result)
+    }
+
     pub fn insert_into_block_table(&self, block: &Block) -> Result<usize> {
         let sql = "INSERT INTO blocks (
             id, hash, size, version, merkle_root, time,
@@ -351,6 +366,25 @@ impl Database {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         let mut stmt_transaction = self.conn.prepare(transaction_query)?;
 
+        let notification_query = "
+            INSERT INTO transaction_notifications (
+                transaction_hash, contract, event_name, state_type
+            ) VALUES (?, ?, ?, ?) RETURNING id";
+        let mut stmt_notification = self.conn.prepare(notification_query)?;
+
+        let daily_contract_usage_query = "
+            INSERT INTO daily_contract_usage (date, contract, usage)
+            VALUES (strftime('%Y-%m-%d', ? / 1000, 'unixepoch'), ?, 1)
+            ON CONFLICT(date, contract)
+            DO UPDATE SET usage = usage + 1";
+        let mut stmt_daily_contract_usage = self.conn.prepare(daily_contract_usage_query)?;
+
+        let state_query = "
+            INSERT INTO transaction_notification_state_values (
+                transaction_notification_id, type, value
+            ) VALUES (?, ?, ?)";
+        let mut stmt_state = self.conn.prepare(state_query)?;
+
         for transaction in transactions {
             stmt_transaction.execute(params![
                 transaction.hash,
@@ -370,11 +404,6 @@ impl Database {
             ])?;
 
             for notification in transaction.notifications.iter() {
-                let notification_query = "
-                    INSERT INTO transaction_notifications (
-                        transaction_hash, contract, event_name, state_type
-                    ) VALUES (?, ?, ?, ?) RETURNING id";
-                let mut stmt_notification = self.conn.prepare(notification_query)?;
                 let notification_id: i64 = stmt_notification.query_row(
                     params![
                         transaction.hash,
@@ -384,12 +413,8 @@ impl Database {
                     ],
                     |row| row.get(0),
                 )?;
-
-                let state_query = "
-                    INSERT INTO transaction_notification_state_values (
-                        transaction_notification_id, type, value
-                    ) VALUES (?, ?, ?)";
-                let mut stmt_state = self.conn.prepare(state_query)?;
+                stmt_daily_contract_usage
+                    .execute(params![transaction.timestamp, notification.contract,])?;
 
                 for state_value in notification.state.value.iter() {
                     stmt_state.execute(params![

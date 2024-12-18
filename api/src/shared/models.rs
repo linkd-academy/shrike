@@ -117,3 +117,10 @@ pub struct DailyTokenPrice {
     pub token_contract: String,
     pub price: f64,
 }
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct DailyContractUsage {
+    pub date: String,
+    pub contract: String,
+    pub usage: u32,
+}

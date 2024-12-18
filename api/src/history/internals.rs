@@ -3,7 +3,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
 
 use crate::error::Error;
-use crate::shared::models::{DailyAddressBalance, DailyTokenPrice};
+use crate::shared::models::{DailyAddressBalance, DailyContractUsage, DailyTokenPrice};
 
 pub fn list_history_balance_internal(
     conn: &PooledConnection<SqliteConnectionManager>,
@@ -123,5 +123,63 @@ pub fn list_history_price_token_internal(
         })
     } else {
         Ok(daily_token_price)
+    }
+}
+
+pub fn list_daily_contract_usage_internal(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    contract: String,
+    page: u32,
+    per_page: u32,
+    sort_by: Option<&str>,
+    order: Option<&str>,
+    date_init: String,
+    date_end: String,
+) -> Result<Vec<DailyContractUsage>, Error> {
+    let order_clause = if let (Some(sort_by), Some(order)) = (sort_by, order) {
+        let valid_columns = vec!["id", "date"];
+        if valid_columns.contains(&sort_by) {
+            format!("ORDER BY {} {}", sort_by, order)
+        } else {
+            return Err(Error {
+                error: format!("Invalid sort_by parameter: {}", sort_by),
+            });
+        }
+    } else {
+        String::new()
+    };
+
+    let sql = format!(
+        "SELECT * FROM daily_contract_usage WHERE contract = ? AND date BETWEEN ? AND ? {} LIMIT ? OFFSET ?",
+        order_clause
+    );
+
+    let mut stmt = conn.prepare(sql.as_str()).unwrap();
+
+    let mut rows = stmt
+        .query(params![
+            contract,
+            date_init,
+            date_end,
+            per_page,
+            page * per_page
+        ])
+        .unwrap();
+    let mut daily_contract_usage = Vec::new();
+
+    while let Some(row) = rows.next().unwrap() {
+        daily_contract_usage.push(DailyContractUsage {
+            date: row.get(1).unwrap(),
+            contract: row.get(2).unwrap(),
+            usage: row.get(3).unwrap(),
+        })
+    }
+
+    if daily_contract_usage.is_empty() {
+        Err(Error {
+            error: "No contract usage for that token.".to_string(),
+        })
+    } else {
+        Ok(daily_contract_usage)
     }
 }

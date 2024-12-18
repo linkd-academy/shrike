@@ -76,6 +76,8 @@ async fn run() -> Result<()> {
         .context("Failed to create daily_token_price_history table")?;
     db.create_contract_table()
         .context("Failed to create contract table")?;
+    db.create_daily_contract_usage()
+        .context("Failed to create daily contract usage table")?;
 
     // create indexes if they don't exist
     db.create_index("idx_blocks_hash", "blocks", "hash")
@@ -118,6 +120,18 @@ async fn run() -> Result<()> {
     .context("Failed to create address index")?;
     db.create_index("idx_contract_hash", "contracts", "hash")
         .context("Failed to create contract index")?;
+    db.create_index(
+        "idx_daily_contract_usage_date",
+        "daily_contract_usage",
+        "date",
+    )
+    .context("Failed to create daily contract usage date index")?;
+    db.create_index(
+        "idx_daily_contract_usage_contract",
+        "daily_contract_usage",
+        "contract",
+    )
+    .context("Failed to create daily contract usage contract index")?;
 
     // some setup
     let index_result = db

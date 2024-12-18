@@ -67,10 +67,8 @@ pub async fn set_stats_internal(pool: web::Data<ConnectionPool>) {
         let conn4 = pool.connection.clone().get().unwrap();
         let conn5 = pool.connection.clone().get().unwrap();
         let conn6 = pool.connection.clone().get().unwrap();
-        let conn7 = pool.connection.clone().get().unwrap();
         let conn8 = pool.connection.clone().get().unwrap();
         let conn9 = pool.connection.clone().get().unwrap();
-        let conn10 = pool.connection.clone().get().unwrap();
 
         let transactions = task::spawn_blocking(move || get_transactions_internal(&conn2));
 

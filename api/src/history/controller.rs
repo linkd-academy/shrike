@@ -87,7 +87,44 @@ async fn list_token_price_history(
     }
 }
 
+#[get("/v1/contracts/{contract}/daily-usage")]
+async fn list_daily_contract_usage(
+    pool: web::Data<ConnectionPool>,
+    path: web::Path<String>,
+    query_parameter: web::Query<PaginationAndFilterParams>,
+) -> impl Responder {
+    let contract = path.into_inner();
+
+    let (page, per_page, sort_by, order) = match normalize_pagination(&query_parameter) {
+        Ok(result) => result,
+        Err(response) => return response,
+    };
+
+    let (date_init, date_end) = match normalize_filter(&query_parameter) {
+        Ok(result) => result,
+        Err(response) => return response,
+    };
+
+    let conn = &pool.connection.get().unwrap();
+    let usage_data = internals::list_daily_contract_usage_internal(
+        conn,
+        contract,
+        page,
+        per_page,
+        sort_by.as_deref(),
+        order.as_deref(),
+        date_init,
+        date_end,
+    );
+
+    match usage_data {
+        Ok(data) => HttpResponse::Ok().json(data),
+        Err(err) => HttpResponse::Ok().json(err),
+    }
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(list_balance_history);
     cfg.service(list_token_price_history);
+    cfg.service(list_daily_contract_usage);
 }
