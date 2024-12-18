@@ -140,7 +140,9 @@ pub fn get_sysfee_internal(conn: &PooledConnection<SqliteConnectionManager>) -> 
 }
 
 pub fn get_transfers_internal(conn: &PooledConnection<SqliteConnectionManager>) -> u64 {
-    let sql = "SELECT COALESCE(SUM(LENGTH(notifications) - LENGTH(REPLACE(notifications, 'Transfer', ''))) / 8, 0) FROM transactions WHERE notifications LIKE '%Transfer%'";
+    let sql = "SELECT COALESCE(SUM(1), 0) AS transfer_count
+        FROM transaction_notifications
+        WHERE event_name = 'Transfer'";
     get_stat_internal::<u64>(conn, sql).unwrap_or(0)
 }
 

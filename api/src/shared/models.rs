@@ -39,7 +39,29 @@ pub struct Transaction {
     pub script: String,
     pub witnesses: Value,
     pub stack_result: Value,
-    pub notifications: Value,
+    pub notifications: Vec<Notification>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Notification {
+    pub id: Option<u64>,
+    pub contract: String,
+    pub eventname: String,
+    pub state: State,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct State {
+    #[serde(rename = "type")]
+    pub _type: String,
+    pub value: Vec<StateValue>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct StateValue {
+    #[serde(rename = "type")]
+    pub _type: String,
+    pub value: Option<serde_json::Value>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

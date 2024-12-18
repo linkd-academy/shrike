@@ -133,7 +133,7 @@ pub fn get_block_transactions_internal(
                     script: row.get(12).unwrap(),
                     witnesses: row.get(13).unwrap(),
                     stack_result: row.get(14).unwrap(),
-                    notifications: row.get(15).unwrap(),
+                    notifications: Vec::new(),
                 })
             }
             Ok(transactions)
@@ -168,7 +168,7 @@ pub fn get_block_transactions_internal(
                     script: row.get(12).unwrap(),
                     witnesses: row.get(13).unwrap(),
                     stack_result: row.get(14).unwrap(),
-                    notifications: row.get(15).unwrap(),
+                    notifications: Vec::new(),
                 })
             }
             Ok(transactions)

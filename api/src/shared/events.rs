@@ -11,32 +11,35 @@ use super::models::{FUSDT_PRECISION, GAS_PRECISION};
 // that do not have the specified address as from/to/sender (e.g. internal transfers on DEX swaps)
 pub fn get_transfer_events(tx: Transaction) -> TxData {
     let mut transfers = Vec::new();
-    let notifications = tx.notifications.as_array().unwrap();
 
-    for notification in notifications {
-        let state = notification["state"].clone();
+    for notification in tx.notifications {
+        let state = notification.state.clone();
 
-        if notification["eventname"] == "Transfer"
-            && state["type"] == "Array"
-            && state["value"][0]["type"] == "ByteString"
-            || state["value"][0]["type"] == "Any" && state["value"][1]["type"] == "ByteString"
-            || state["value"][1]["type"] == "Any" && state["value"][2]["type"] == "Integer"
+        if notification.eventname == "Transfer"
+            && state._type == "Array"
+            && state.value[0]._type == "ByteString"
+            || state.value[0]._type == "Any" && state.value[1]._type == "ByteString"
+            || state.value[1]._type == "Any" && state.value[2]._type == "Integer"
         {
-            let contract = notification["contract"].as_str().unwrap().to_string();
+            let contract = notification.contract.clone();
 
-            let from = if state["value"][0]["value"].is_string() {
-                neo::base64_to_address(state["value"][0]["value"].as_str().unwrap())
+            let from = if let Some(serde_json::Value::String(s)) = &state.value[0].value {
+                neo::base64_to_address(s)
             } else {
-                "null".to_string()
+                "".to_string()
             };
 
-            let to = if state["value"][1]["value"].is_string() {
-                neo::base64_to_address(state["value"][1]["value"].as_str().unwrap())
+            let to = if let Some(serde_json::Value::String(s)) = &state.value[1].value {
+                neo::base64_to_address(s)
             } else {
-                "null".to_string()
+                "".to_string()
             };
 
-            let qty = state["value"][2]["value"].as_str().unwrap();
+            let qty = if let Some(serde_json::Value::String(s)) = &state.value[2].value {
+                s.clone()
+            } else {
+                "0".to_string()
+            };
 
             let amount = match qty.parse::<f64>() {
                 Ok(v) => {

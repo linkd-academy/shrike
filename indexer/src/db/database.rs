@@ -114,11 +114,11 @@ impl Database {
     pub fn create_transaction_notification_state_value_table(&self) -> Result<usize> {
         let result = self.conn.execute(
             "CREATE TABLE IF NOT EXISTS transaction_notification_state_values (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            transaction_hash    TEXT NOT NULL,
-            type                TEXT NOT NULL,
-            value               TEXT NOT NULL,
-            FOREIGN KEY (transaction_hash) REFERENCES transactions (hash)
+            id                              INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_notification_id     INTEGER NOT NULL,
+            type                            TEXT NOT NULL,
+            value                           TEXT NULL,
+            FOREIGN KEY (transaction_notification_id) REFERENCES transaction_notifications (id)
         )",
             [],
         )?;
@@ -322,130 +322,90 @@ impl Database {
     ) -> Result<()> {
         let tx = self.conn.unchecked_transaction()?;
 
-        let mut block_values = Vec::new();
-        let mut block_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+        let block_query = "
+            INSERT INTO blocks (
+                hash, size, version, merkle_root, time, nonce, speaker, next_consensus, reward, reward_receiver, witnesses
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        let mut stmt_block = self.conn.prepare(block_query)?;
 
         for block in blocks {
-            block_values.push("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string());
-            block_params.push(Box::new(block.hash));
-            block_params.push(Box::new(block.size));
-            block_params.push(Box::new(block.version));
-            block_params.push(Box::new(block.merkle_root));
-            block_params.push(Box::new(block.time));
-            block_params.push(Box::new(block.nonce));
-            block_params.push(Box::new(block.speaker));
-            block_params.push(Box::new(block.next_consensus));
-            block_params.push(Box::new(block.reward));
-            block_params.push(Box::new(block.reward_receiver));
-            block_params.push(Box::new(block.witnesses));
+            stmt_block.execute(params![
+                block.hash,
+                block.size,
+                block.version,
+                block.merkle_root,
+                block.time,
+                block.nonce,
+                block.speaker,
+                block.next_consensus,
+                block.reward,
+                block.reward_receiver,
+                block.witnesses,
+            ])?;
         }
 
-        let mut tx_values = Vec::new();
-        let mut tx_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
-        let mut notification_values = Vec::new();
-        let mut notification_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
-        let mut state_values = Vec::new();
-        let mut state_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+        let transaction_query = "
+            INSERT INTO transactions (
+                hash, block_index, vm_state, size, version, nonce, sender, sysfee, netfee,
+                valid_until, signers, script, witnesses, stack_result
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        let mut stmt_transaction = self.conn.prepare(transaction_query)?;
 
         for transaction in transactions {
-            let transaction_hash = transaction.hash.clone();
-
-            tx_values.push("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string());
-            tx_params.push(Box::new(transaction_hash.clone()));
-            tx_params.push(Box::new(transaction.block_index));
-            tx_params.push(Box::new(transaction.vm_state));
-            tx_params.push(Box::new(transaction.size));
-            tx_params.push(Box::new(transaction.version));
-            tx_params.push(Box::new(transaction.nonce));
-            tx_params.push(Box::new(transaction.sender));
-            tx_params.push(Box::new(transaction.sysfee));
-            tx_params.push(Box::new(transaction.netfee));
-            tx_params.push(Box::new(transaction.valid_until));
-            tx_params.push(Box::new(transaction.signers));
-            tx_params.push(Box::new(transaction.script));
-            tx_params.push(Box::new(transaction.witnesses));
-            tx_params.push(Box::new(transaction.stack_result));
+            stmt_transaction.execute(params![
+                transaction.hash,
+                transaction.block_index,
+                transaction.vm_state,
+                transaction.size,
+                transaction.version,
+                transaction.nonce,
+                transaction.sender,
+                transaction.sysfee,
+                transaction.netfee,
+                transaction.valid_until,
+                transaction.signers,
+                transaction.script,
+                transaction.witnesses,
+                transaction.stack_result,
+            ])?;
 
             for notification in transaction.notifications.iter() {
-                notification_values.push("(?, ?, ?, ?)".to_string());
-                notification_params.push(Box::new(transaction_hash.clone()));
-                notification_params.push(Box::new(notification.contract.clone()));
-                notification_params.push(Box::new(notification.eventname.clone()));
-                notification_params.push(Box::new(notification.state._type.clone()));
+                let notification_query = "
+                    INSERT INTO transaction_notifications (
+                        transaction_hash, contract, event_name, state_type
+                    ) VALUES (?, ?, ?, ?) RETURNING id";
+                let mut stmt_notification = self.conn.prepare(notification_query)?;
+                let notification_id: i64 = stmt_notification.query_row(
+                    params![
+                        transaction.hash,
+                        notification.contract,
+                        notification.eventname,
+                        notification.state._type,
+                    ],
+                    |row| row.get(0),
+                )?;
+
+                let state_query = "
+                    INSERT INTO transaction_notification_state_values (
+                        transaction_notification_id, type, value
+                    ) VALUES (?, ?, ?)";
+                let mut stmt_state = self.conn.prepare(state_query)?;
 
                 for state_value in notification.state.value.iter() {
-                    state_values.push("(?, ?, ?)".to_string());
-                    state_params.push(Box::new(transaction_hash.clone()));
-                    state_params.push(Box::new(state_value._type.clone()));
-                    state_params.push(Box::new(match &state_value.value {
-                        Some(serde_json::Value::String(s)) => s.clone(),
-                        Some(serde_json::Value::Number(n)) => n.to_string(),
-                        Some(serde_json::Value::Null) => "null".to_string(),
-                        Some(_) => serde_json::to_string(&state_value.value).unwrap_or_default(),
-                        None => "".to_string(),
-                    }));
+                    stmt_state.execute(params![
+                        notification_id,
+                        state_value._type,
+                        match &state_value.value {
+                            Some(serde_json::Value::String(s)) => Some(s.clone()),
+                            Some(serde_json::Value::Number(n)) => Some(n.to_string()),
+                            Some(serde_json::Value::Null) => None,
+                            None => None,
+                            _ =>
+                                Some(serde_json::to_string(&state_value.value).unwrap_or_default()),
+                        }
+                    ])?;
                 }
             }
-        }
-
-        // Executa o bulk insert para blocos
-        if !block_values.is_empty() {
-            let block_query = format!(
-                "INSERT INTO blocks (
-                    hash, size, version, merkle_root, time, nonce, speaker, next_consensus, reward, reward_receiver, witnesses
-                ) VALUES {}",
-                block_values.join(", ")
-            );
-
-            let block_params_ref: Vec<&dyn rusqlite::ToSql> =
-                block_params.iter().map(|p| p.as_ref()).collect();
-
-            self.conn.execute(&block_query, &block_params_ref[..])?;
-        }
-
-        // Executa o bulk insert para transações
-        if !tx_values.is_empty() {
-            let tx_query = format!(
-                "INSERT INTO transactions (
-                    hash, block_index, vm_state, size, version, nonce, sender, sysfee, netfee,
-                    valid_until, signers, script, witnesses, stack_result
-                ) VALUES {}",
-                tx_values.join(", ")
-            );
-
-            let tx_params_ref: Vec<&dyn rusqlite::ToSql> =
-                tx_params.iter().map(|p| p.as_ref()).collect();
-
-            self.conn.execute(&tx_query, &tx_params_ref[..])?;
-        }
-
-        if !notification_values.is_empty() {
-            let notification_query = format!(
-                "INSERT INTO transaction_notifications (
-                    transaction_hash, contract, event_name, state_type
-                ) VALUES {}",
-                notification_values.join(", ")
-            );
-
-            let notification_params_ref: Vec<&dyn rusqlite::ToSql> =
-                notification_params.iter().map(|p| p.as_ref()).collect();
-
-            self.conn
-                .execute(&notification_query, &notification_params_ref[..])?;
-        }
-
-        if !state_values.is_empty() {
-            let state_query = format!(
-                "INSERT INTO transaction_notification_state_values (
-                    transaction_hash, type, value
-                ) VALUES {}",
-                state_values.join(", ")
-            );
-
-            let state_params_ref: Vec<&dyn rusqlite::ToSql> =
-                state_params.iter().map(|p| p.as_ref()).collect();
-
-            self.conn.execute(&state_query, &state_params_ref[..])?;
         }
 
         tx.commit()?;

@@ -22,12 +22,30 @@ async fn get_transaction(
     }
 
     let conn = &pool.connection.get().unwrap();
-    let transaction = internals::get_transaction_internal(conn, hash);
+    let mut transaction = match internals::get_transaction_internal(conn, hash.clone()) {
+        Ok(tx) => tx,
+        Err(err) => return HttpResponse::NotFound().json(err),
+    };
 
-    match transaction {
-        Ok(tx) => HttpResponse::Ok().json(tx),
-        Err(err) => HttpResponse::Ok().json(err),
+    let notifications = match internals::get_transaction_notifications(conn, hash.clone()) {
+        Ok(notifs) => notifs,
+        Err(err) => return HttpResponse::InternalServerError().json(err),
+    };
+
+    let mut enriched_notifications = Vec::new();
+    for mut notification in notifications {
+        let state_values =
+            match internals::get_notification_state_values(conn, notification.id.unwrap()) {
+                Ok(states) => states,
+                Err(err) => return HttpResponse::InternalServerError().json(err),
+            };
+        notification.state.value = state_values;
+        enriched_notifications.push(notification);
     }
+
+    transaction.notifications = enriched_notifications;
+
+    HttpResponse::Ok().json(transaction)
 }
 
 #[get("/v1/transaction/sender/{address}")]
