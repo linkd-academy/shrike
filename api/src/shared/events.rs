@@ -26,13 +26,13 @@ pub fn get_transfer_events(tx: Transaction) -> TxData {
             let from = if let Some(serde_json::Value::String(s)) = &state.value[0].value {
                 neo::base64_to_address(s)
             } else {
-                "".to_string()
+                "null".to_string()
             };
 
             let to = if let Some(serde_json::Value::String(s)) = &state.value[1].value {
                 neo::base64_to_address(s)
             } else {
-                "".to_string()
+                "null".to_string()
             };
 
             let qty = if let Some(serde_json::Value::String(s)) = &state.value[2].value {

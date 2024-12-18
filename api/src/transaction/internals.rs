@@ -60,10 +60,10 @@ pub fn get_transaction_notifications(
     while let Some(row) = rows.next().unwrap() {
         notifications.push(Notification {
             id: row.get(0).unwrap(),
-            contract: row.get(1).unwrap(),
-            eventname: row.get(2).unwrap(),
+            contract: row.get(2).unwrap(),
+            eventname: row.get(3).unwrap(),
             state: State {
-                _type: row.get(3).unwrap(),
+                _type: row.get(4).unwrap(),
                 value: Vec::new(),
             },
         });
