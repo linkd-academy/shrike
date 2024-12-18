@@ -1,3 +1,5 @@
+use crate::rpc::models::Notification;
+
 #[derive(Debug, Clone)]
 pub struct Transaction {
     pub hash: String,
@@ -15,9 +17,8 @@ pub struct Transaction {
     pub script: String,
     pub witnesses: String,
     pub stack_result: String,
-    pub notifications: String,
+    pub notifications: Vec<Notification>,
 }
-
 #[derive(Debug, Clone)]
 pub struct Block {
     pub hash: String,

@@ -204,14 +204,14 @@ impl Indexer {
         let prepped_contracts = prepped_tx.iter().flat_map(|transaction| {
             conversion::convert_contract_result(
                 transaction.script.clone(),
-                serde_json::from_str(&transaction.notifications).unwrap(),
+                transaction.notifications.clone(),
                 transaction.block_index,
             )
         });
 
         let prepped_daily_balances = try_join_all(prepped_tx.iter().map(|transaction| async {
             conversion::convert_address_result(
-                serde_json::from_str(&transaction.notifications).unwrap(),
+                transaction.notifications.clone(),
                 transaction.block_index,
                 transaction.timestamp,
                 &self.client,

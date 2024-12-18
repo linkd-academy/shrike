@@ -66,6 +66,10 @@ async fn run() -> Result<()> {
         .context("Failed to create block table")?;
     db.create_transaction_table()
         .context("Failed to create transaction table")?;
+    db.create_transaction_notification_table()
+        .context("Failed to create transaction notification table")?;
+    db.create_transaction_notification_state_value_table()
+        .context("Failed to create transaction notification state value table")?;
     db.create_daily_address_balances()
         .context("Failed to create daily_address_balances table")?;
     db.create_daily_token_price_history()
@@ -82,6 +86,18 @@ async fn run() -> Result<()> {
         .context("Failed to create txsender index")?;
     db.create_index("idx_transaction_block_index", "transactions", "block_index")
         .context("Failed to create transaction block index")?;
+    db.create_index(
+        "idx_transaction_notifications_event_name",
+        "transaction_notifications",
+        "event_name",
+    )
+    .context("Failed to create transaction_notifications event_name index")?;
+    db.create_index(
+        "idx_transaction_notification_state_values_value",
+        "transaction_notification_state_values",
+        "value",
+    )
+    .context("Failed to create transaction_notification_state_values value index")?;
     db.create_index(
         "idx_daily_address_balances_address",
         "daily_address_balances",
