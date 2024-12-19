@@ -58,6 +58,7 @@ async fn main() -> std::io::Result<()> {
             .configure(block::controller::config)
             .configure(transaction::controller::config)
             .configure(stat::controller::config)
+            .configure(indexer::controller::config)
             .configure(history::controller::config)
     })
     .bind(("0.0.0.0", 8080))?

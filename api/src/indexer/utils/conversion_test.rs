@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
     use crate::{
-        rpc::models::{Notification, State, StateValue},
-        utils::conversion::{convert_address_result, convert_contract_result},
+        indexer::rpc::models::{Notification, State, StateValue},
+        indexer::utils::conversion::{convert_address_result, convert_contract_result},
     };
     use serde_json::json;
 

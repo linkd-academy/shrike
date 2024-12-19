@@ -10,10 +10,7 @@ use crate::indexer::rpc::client::Client as RpcClient;
 use crate::indexer::spawn::indexer::Indexer;
 
 #[post("/v1/setup/initialize")]
-async fn initilize_indexer_setup(
-    pool: web::Data<ConnectionPool>,
-    path: web::Path<(String, String)>,
-) -> impl Responder {
+async fn initilize_indexer_setup(pool: web::Data<ConnectionPool>) -> impl Responder {
     let config = AppConfig::new();
 
     let db = match LocalDatabase::new(&config) {
@@ -131,7 +128,7 @@ async fn initilize_indexer_setup(
 }
 
 #[post("/v1/indexer/run")]
-async fn run_indexer(pool: web::Data<ConnectionPool>, path: web::Path<String>) -> impl Responder {
+async fn run_indexer(pool: web::Data<ConnectionPool>) -> impl Responder {
     let config = AppConfig::new();
 
     let client = RpcClient::new(&config);
