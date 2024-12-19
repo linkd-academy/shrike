@@ -1,6 +1,6 @@
 use crate::shared::models::{Transaction, Transfer, TxData};
 
-use lib::neo;
+use crate::shared::neo;
 
 use super::models::{FUSDT_PRECISION, GAS_PRECISION};
 

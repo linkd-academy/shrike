@@ -2,7 +2,7 @@ use log::LevelFilter;
 
 use std::io::{self, Write};
 
-use crate::config::AppConfig;
+use crate::indexer::config::AppConfig;
 
 pub fn init() {
     let config = AppConfig::new();

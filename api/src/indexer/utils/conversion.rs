@@ -1,13 +1,13 @@
-use crate::rpc::client::Client;
+use crate::indexer::rpc::client::Client;
 
-use lib::neo::{
+use crate::shared::neo::{
     address_to_hash160, base64_to_address, base64_to_hex, base64_to_script_hash, hex_decode,
     hex_to_base64, neo3_disassemble,
 };
 use serde_json::to_string;
 
-use crate::db::model::{Block, Contract, DailyAddressBalance, Transaction};
-use crate::rpc::models::{
+use crate::indexer::db::model::{Block, Contract, DailyAddressBalance, Transaction};
+use crate::indexer::rpc::models::{
     BlockAppLogResult, BlockResult, ClientError, Notification, TransactionAppLogResult,
     TransactionResult,
 };

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use reqwest::Client as ReqwestClient;
 
-use crate::config::AppConfig;
+use crate::indexer::config::AppConfig;
 
 use super::method::{
     GetApplicationLog, GetBlock, GetBlockCount, InvokeFunction, InvokeFunctionHistoric, RpcMethod,

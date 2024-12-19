@@ -2,7 +2,7 @@ use log::{error, info, warn};
 use text_io::read;
 use tokio::{fs::File, io::AsyncWriteExt};
 
-use crate::config::AppConfig;
+use crate::indexer::config::AppConfig;
 use std::{env, path::Path, process::Command};
 
 // move these to config in future

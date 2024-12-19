@@ -1,4 +1,4 @@
-use lib::db::DB_PATH;
+use crate::shared::db::DB_PATH;
 
 #[derive(Debug)]
 pub struct AppConfig {

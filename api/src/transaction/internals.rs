@@ -1,4 +1,3 @@
-use lib::neo;
 use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
@@ -9,6 +8,7 @@ use crate::shared::events;
 use crate::shared::models::{
     Notification, State, StateValue, Transaction, TransactionList, TxDataList,
 };
+use crate::shared::neo;
 
 pub fn get_transaction_internal(
     conn: &PooledConnection<SqliteConnectionManager>,

@@ -1,4 +1,4 @@
-use lib::neo::ALPHABET;
+use crate::shared::neo::ALPHABET;
 
 pub fn is_neo_address(string: &str) -> bool {
     string.chars().count() == 34

@@ -7,13 +7,13 @@ use tokio::time::sleep;
 use chrono::{DateTime, NaiveTime};
 use std::time::{Duration, SystemTime};
 
-use crate::config::AppConfig;
-use crate::db::database::Database;
-use crate::flamingo::client::FlamingoClient;
-use crate::flamingo::models::FlamingoPrice;
-use crate::rpc::client::Client;
-use crate::rpc::models::{BlockResult, TransactionResult};
-use crate::utils::{conversion, logger};
+use crate::indexer::config::AppConfig;
+use crate::indexer::db::database::Database;
+use crate::indexer::flamingo::client::FlamingoClient;
+use crate::indexer::flamingo::models::FlamingoPrice;
+use crate::indexer::rpc::client::Client;
+use crate::indexer::rpc::models::{BlockResult, TransactionResult};
+use crate::indexer::utils::{conversion, logger};
 
 pub struct Indexer {
     client: Client,

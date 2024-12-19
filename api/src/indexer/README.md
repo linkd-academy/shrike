@@ -37,7 +37,6 @@ Indexed 62587 block(s).
 
 ## Features
 
-- Synchronizes a NeoGo instance.
 - Fetches block, transaction, and application log data.
 - Processes and stores chain data in SQLite tables.
 

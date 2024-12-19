@@ -1,4 +1,4 @@
-use crate::rpc::models::Notification;
+use crate::indexer::rpc::models::Notification;
 
 #[derive(Debug, Clone)]
 pub struct Transaction {

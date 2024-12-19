@@ -16,4 +16,12 @@ actix-cors = "0.6.4"
 tokio = { version = "1.24.2", features = ["rt", "macros"] }
 futures = "0.3.25"
 once_cell = "1.17.0"
-lib = { path = "../lib" }
+dotenv = { version ="0.15.0" }
+reqwest = { version = "0.11.13", features = ["json", "rustls-tls"], default-features = false }
+text_io = "0.1.12"
+thiserror = "1.0.40"
+anyhow = "1.0.70"
+env_logger = "0.10.0"
+log = "0.4.17"
+regex = "1.5.4"
+chrono = "0.4"

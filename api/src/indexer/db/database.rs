@@ -1,8 +1,8 @@
 use log::info;
 use rusqlite::{params, Connection, Result, ToSql};
 
-use crate::config::AppConfig;
-use crate::flamingo::models::FlamingoPrice;
+use crate::indexer::config::AppConfig;
+use crate::indexer::flamingo::models::FlamingoPrice;
 
 use super::model::{Block, Contract, DailyAddressBalance, Transaction};
 

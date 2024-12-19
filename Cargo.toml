@@ -2,7 +2,5 @@
 resolver = "2"
 
 members = [
-    "api",
-    "indexer",
-    "lib"
+    "api"
 ]

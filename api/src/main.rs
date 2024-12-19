@@ -1,13 +1,14 @@
 mod block;
 mod error;
 mod history;
+mod indexer;
 mod shared;
 mod stat;
 mod transaction;
 
+use crate::shared::db::DB_PATH;
 use actix_cors::Cors;
 use actix_web::{http::header, web, App, HttpServer};
-use lib::db::DB_PATH;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::OpenFlags;
