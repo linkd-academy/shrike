@@ -8,9 +8,9 @@ use serde_json::to_string;
 
 use crate::block::models::Block;
 use crate::history::models::DailyAddressBalance;
-use crate::indexer::db::model::Contract;
 use crate::indexer::rpc::models::{
-    BlockAppLogResult, BlockResult, ClientError, TransactionAppLogResult, TransactionResult,
+    BlockAppLogResult, BlockResult, ClientError, Contract, TransactionAppLogResult,
+    TransactionResult,
 };
 use crate::transaction::models::{Notification, Transaction};
 

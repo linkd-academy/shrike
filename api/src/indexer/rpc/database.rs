@@ -5,9 +5,9 @@ use crate::indexer::flamingo::models::FlamingoPrice;
 use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
 
-use super::model::Contract;
 use crate::block::models::Block;
 use crate::history::models::DailyAddressBalance;
+use crate::indexer::rpc::models::Contract;
 use crate::transaction::models::Transaction;
 
 pub struct Database<'a> {

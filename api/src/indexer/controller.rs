@@ -3,8 +3,8 @@ use actix_web::{post, web, HttpResponse, Responder};
 use crate::ConnectionPool;
 
 use crate::indexer::config::AppConfig;
-use crate::indexer::db::database::Database as LocalDatabase;
 use crate::indexer::rpc::client::Client as RpcClient;
+use crate::indexer::rpc::database::Database as LocalDatabase;
 use crate::indexer::spawn::indexer::Indexer;
 
 pub async fn initilize_indexer_setup(pool: web::Data<ConnectionPool>) -> impl Responder {

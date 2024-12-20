@@ -8,10 +8,10 @@ use chrono::{DateTime, NaiveTime};
 use std::time::{Duration, SystemTime};
 
 use crate::indexer::config::AppConfig;
-use crate::indexer::db::database::Database;
 use crate::indexer::flamingo::client::FlamingoClient;
 use crate::indexer::flamingo::models::FlamingoPrice;
 use crate::indexer::rpc::client::Client;
+use crate::indexer::rpc::database::Database;
 use crate::indexer::rpc::models::{BlockResult, TransactionResult};
 use crate::indexer::utils::{conversion, logger};
 
