@@ -1,4 +1,4 @@
-use crate::shared::models::{Transaction, Transfer, TxData};
+use crate::transaction::models::{Transaction, Transfer, TxData};
 
 use crate::shared::neo;
 

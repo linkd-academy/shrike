@@ -4,7 +4,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use super::models::Block;
 use crate::error::Error;
 use crate::shared::checker;
-use crate::shared::models::Transaction;
+use crate::transaction::models::Transaction;
 
 pub fn get_block_internal(
     conn: &PooledConnection<SqliteConnectionManager>,
@@ -118,6 +118,7 @@ pub fn get_block_transactions_internal(
 
             while let Some(row) = rows.next().unwrap() {
                 transactions.push(Transaction {
+                    timestamp: 0,
                     index: row.get(0).unwrap(),
                     hash: row.get(1).unwrap(),
                     block_index: row.get(2).unwrap(),
@@ -153,6 +154,7 @@ pub fn get_block_transactions_internal(
 
             while let Some(row) = rows.next().unwrap() {
                 transactions.push(Transaction {
+                    timestamp: 0,
                     index: row.get(0).unwrap(),
                     hash: row.get(1).unwrap(),
                     block_index: row.get(2).unwrap(),

@@ -15,14 +15,14 @@ use crate::indexer::rpc::client::Client;
 use crate::indexer::rpc::models::{BlockResult, TransactionResult};
 use crate::indexer::utils::{conversion, logger};
 
-pub struct Indexer {
+pub struct Indexer<'a> {
     client: Client,
-    db: Database,
+    db: Database<'a>,
     config: AppConfig,
 }
 
-impl Indexer {
-    pub fn new(client: Client, db: Database, config: AppConfig) -> Self {
+impl<'a> Indexer<'a> {
+    pub fn new(client: Client, db: Database<'a>, config: AppConfig) -> Self {
         Self { client, db, config }
     }
 

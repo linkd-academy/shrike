@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Block {
     pub index: u64,
@@ -13,5 +12,5 @@ pub struct Block {
     pub next_consensus: String,
     pub reward: f64,
     pub reward_receiver: String,
-    pub witnesses: Value,
+    pub witnesses: String,
 }

@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 
+use crate::transaction::models::{Notification, StateValue};
+
 #[derive(Deserialize, Debug, Clone)]
 pub enum NeoParam {
     String(String),
@@ -118,27 +120,6 @@ pub struct Execution {
     pub gasconsumed: String,
     pub stack: Vec<StateValue>,
     pub notifications: Vec<Notification>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Notification {
-    pub contract: String,
-    pub eventname: String,
-    pub state: State,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct State {
-    #[serde(rename = "type")]
-    pub _type: String,
-    pub value: Vec<StateValue>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct StateValue {
-    #[serde(rename = "type")]
-    pub _type: String,
-    pub value: Option<serde_json::Value>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

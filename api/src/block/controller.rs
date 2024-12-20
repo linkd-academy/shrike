@@ -1,7 +1,7 @@
 use actix_web::{get, web, HttpResponse, Responder};
 
 use crate::error::Error;
-use crate::shared::models::TransactionList;
+use crate::transaction::models::TransactionList;
 use crate::ConnectionPool;
 
 use super::internals;

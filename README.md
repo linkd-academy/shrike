@@ -9,9 +9,8 @@ Shrike is a suite of tools designed for analyzing Neo blockchain data. The infra
 
 To get started with Shrike, visit the README for the component you want to use:
 
-- [Indexer readme](./indexer/README.md)
+- [Indexer readme](./api/indexer/README.md)
 - [API readme](./api/README.md)
-- [Lib readme](./lib/README.md)
 
 ## Acknowledgements
 

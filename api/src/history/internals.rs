@@ -3,7 +3,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
 
 use crate::error::Error;
-use crate::shared::models::{DailyAddressBalance, DailyContractUsage, DailyTokenPrice};
+use crate::history::models::{DailyAddressBalance, DailyContractUsage, DailyTokenPrice};
 
 pub fn list_history_balance_internal(
     conn: &PooledConnection<SqliteConnectionManager>,
@@ -50,6 +50,7 @@ pub fn list_history_balance_internal(
 
     while let Some(row) = rows.next().unwrap() {
         daily_balances.push(DailyAddressBalance {
+            timestamp: 0,
             block_index: row.get(1).unwrap(),
             date: row.get(2).unwrap(),
             address: row.get(3).unwrap(),

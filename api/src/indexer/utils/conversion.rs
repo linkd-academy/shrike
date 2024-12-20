@@ -6,11 +6,13 @@ use crate::shared::neo::{
 };
 use serde_json::to_string;
 
-use crate::indexer::db::model::{Block, Contract, DailyAddressBalance, Transaction};
+use crate::block::models::Block;
+use crate::history::models::DailyAddressBalance;
+use crate::indexer::db::model::Contract;
 use crate::indexer::rpc::models::{
-    BlockAppLogResult, BlockResult, ClientError, Notification, TransactionAppLogResult,
-    TransactionResult,
+    BlockAppLogResult, BlockResult, ClientError, TransactionAppLogResult, TransactionResult,
 };
+use crate::transaction::models::{Notification, Transaction};
 
 pub fn convert_block_result(r: BlockResult, a: &BlockAppLogResult) -> Block {
     let block_reward = &a.executions[1].notifications[0].state.value[2].value;
@@ -25,6 +27,7 @@ pub fn convert_block_result(r: BlockResult, a: &BlockAppLogResult) -> Block {
     let address = base64_to_address(stripped);
 
     Block {
+        index: r.index,
         hash: r.hash,
         size: r.size,
         version: r.version,
@@ -49,6 +52,7 @@ pub fn convert_transaction_result(
     let notifs = &a.executions[0].notifications;
 
     Transaction {
+        index: 0,
         hash: t.hash,
         block_index: block_height,
         timestamp: t.timestamp,
@@ -186,7 +190,8 @@ pub async fn convert_address_result(
 
                 addresses.push(DailyAddressBalance {
                     block_index: block_height,
-                    date: timestamp,
+                    timestamp: timestamp,
+                    date: "".to_string(),
                     address: sender_address.clone(),
                     token_contract: token.to_string(),
                     balance: sender_balance,
@@ -194,7 +199,8 @@ pub async fn convert_address_result(
 
                 addresses.push(DailyAddressBalance {
                     block_index: block_height,
-                    date: timestamp,
+                    timestamp: timestamp,
+                    date: "".to_string(),
                     address: recipient_address.clone(),
                     token_contract: token.to_string(),
                     balance: receiver_balance,

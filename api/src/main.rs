@@ -27,18 +27,26 @@ async fn main() -> std::io::Result<()> {
     let db_path = DB_PATH
         .to_str()
         .expect("Failed to convert database path to str");
-    let manager =
+
+    let manager_ro =
         SqliteConnectionManager::file(db_path).with_flags(OpenFlags::SQLITE_OPEN_READ_ONLY);
-    let pool = Pool::new(manager).unwrap();
+    let pool_ro = Pool::new(manager_ro).unwrap();
+    let connection_pool_ro = web::Data::new(ConnectionPool {
+        connection: pool_ro,
+    });
+    let internal_connection_ro = connection_pool_ro.clone();
 
-    let connection_pool = web::Data::new(ConnectionPool { connection: pool });
-
-    let internal_connection = connection_pool.clone();
+    let manager_rw =
+        SqliteConnectionManager::file(db_path).with_flags(OpenFlags::SQLITE_OPEN_READ_WRITE);
+    let pool_rw = Pool::new(manager_rw).unwrap();
+    let connection_pool_rw = web::Data::new(ConnectionPool {
+        connection: pool_rw,
+    });
 
     task::spawn(async move {
         let mut interval = time::interval(Duration::from_secs(REFRESH_INTERVAL));
         loop {
-            let c = internal_connection.clone();
+            let c = internal_connection_ro.clone();
             interval.tick().await;
             stat::internals::set_stats_internal(c).await;
         }
@@ -54,12 +62,13 @@ async fn main() -> std::io::Result<()> {
             .max_age(3600);
         App::new()
             .wrap(cors)
-            .app_data(connection_pool.clone())
+            .app_data(connection_pool_ro.clone())
             .configure(block::controller::config)
             .configure(transaction::controller::config)
             .configure(stat::controller::config)
-            .configure(indexer::controller::config)
             .configure(history::controller::config)
+            .app_data(connection_pool_rw.clone())
+            .configure(indexer::controller::config)
     })
     .bind(("0.0.0.0", 8080))?
     .run()

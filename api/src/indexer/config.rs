@@ -10,7 +10,6 @@ pub struct AppConfig {
     pub batch_size: u64,
     pub keep_alive: bool,
     pub keep_alive_interval: u64,
-    pub height_limit: u64,
 }
 
 impl AppConfig {
@@ -28,7 +27,6 @@ impl AppConfig {
             batch_size: 25,
             keep_alive: false,
             keep_alive_interval: 5,
-            height_limit: 0,
         }
     }
 }

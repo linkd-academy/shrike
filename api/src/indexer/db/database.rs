@@ -1,28 +1,22 @@
 use log::info;
-use rusqlite::{params, Connection, Result, ToSql};
+use rusqlite::{params, Result, ToSql};
 
-use crate::indexer::config::AppConfig;
 use crate::indexer::flamingo::models::FlamingoPrice;
+use r2d2::PooledConnection;
+use r2d2_sqlite::SqliteConnectionManager;
 
-use super::model::{Block, Contract, DailyAddressBalance, Transaction};
+use super::model::Contract;
+use crate::block::models::Block;
+use crate::history::models::DailyAddressBalance;
+use crate::transaction::models::Transaction;
 
-pub struct Database {
-    conn: Connection,
+pub struct Database<'a> {
+    conn: &'a PooledConnection<SqliteConnectionManager>,
 }
 
-impl Database {
-    pub fn new(config: &AppConfig) -> Result<Self> {
-        if config.test_db {
-            info!("Using test database.");
-            let conn = Connection::open("shrike_test.db3")?;
-
-            Ok(Database { conn })
-        } else {
-            info!("Using database at {}.", config.db_path);
-            let conn = Connection::open(&config.db_path)?;
-
-            Ok(Database { conn })
-        }
+impl<'a> Database<'a> {
+    pub fn new(conn: &'a PooledConnection<SqliteConnectionManager>) -> Result<Self> {
+        Ok(Database { conn })
     }
 
     pub fn set_to_wal(&self) -> Result<()> {
@@ -191,32 +185,6 @@ impl Database {
         Ok(result)
     }
 
-    pub fn insert_into_block_table(&self, block: &Block) -> Result<usize> {
-        let sql = "INSERT INTO blocks (
-            id, hash, size, version, merkle_root, time,
-            nonce, speaker, next_consensus, reward, reward_receiver, witnesses
-        ) VALUES (0, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)";
-
-        let result = self.conn.execute(
-            sql,
-            params![
-                block.hash,
-                block.size,
-                block.version,
-                block.merkle_root,
-                block.time,
-                block.nonce,
-                block.speaker,
-                block.next_consensus,
-                block.reward,
-                block.reward_receiver,
-                block.witnesses
-            ],
-        )?;
-
-        Ok(result)
-    }
-
     pub fn insert_contracts(&self, contracts: impl Iterator<Item = Contract>) -> Result<()> {
         let tx = self.conn.unchecked_transaction()?;
 
@@ -257,7 +225,7 @@ impl Database {
         for balance in balances {
             values.push("(strftime('%Y-%m-%d', ? / 1000, 'unixepoch'), ?, ?, ?, ?)".to_string());
 
-            let date_i64 = i64::try_from(balance.date).map_err(|_| {
+            let date_i64 = i64::try_from(balance.timestamp).map_err(|_| {
                 rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     "Failed to convert u64 to i64",

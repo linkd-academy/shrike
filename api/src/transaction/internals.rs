@@ -5,10 +5,10 @@ use rusqlite::params;
 use crate::block::internals;
 use crate::error::Error;
 use crate::shared::events;
-use crate::shared::models::{
+use crate::shared::neo;
+use crate::transaction::models::{
     Notification, State, StateValue, Transaction, TransactionList, TxDataList,
 };
-use crate::shared::neo;
 
 pub fn get_transaction_internal(
     conn: &PooledConnection<SqliteConnectionManager>,
@@ -19,6 +19,7 @@ pub fn get_transaction_internal(
 
     let transaction = stmt.query_row([hash], |row| {
         Ok(Transaction {
+            timestamp: 0,
             index: row.get(0)?,
             hash: row.get(1)?,
             block_index: row.get(2)?,
@@ -138,6 +139,7 @@ pub fn get_sender_transactions_internal(
     let mut transactions = Vec::new();
     while let Some(row) = rows.next().unwrap() {
         transactions.push(Transaction {
+            timestamp: 0,
             index: row.get(0).unwrap(),
             hash: row.get(1).unwrap(),
             block_index: row.get(2).unwrap(),
@@ -207,6 +209,7 @@ pub fn get_address_transfers_internal(
     let mut transactions = Vec::new();
     while let Some(row) = rows.next().unwrap() {
         transactions.push(Transaction {
+            timestamp: 0,
             index: row.get(0).unwrap(),
             hash: row.get(1).unwrap(),
             block_index: row.get(2).unwrap(),

@@ -2,8 +2,6 @@ use actix_web::{post, web, HttpResponse, Responder};
 
 use crate::ConnectionPool;
 
-use anyhow::Context;
-
 use crate::indexer::config::AppConfig;
 use crate::indexer::db::database::Database as LocalDatabase;
 use crate::indexer::rpc::client::Client as RpcClient;
@@ -11,9 +9,9 @@ use crate::indexer::spawn::indexer::Indexer;
 
 #[post("/v1/setup/initialize")]
 async fn initilize_indexer_setup(pool: web::Data<ConnectionPool>) -> impl Responder {
-    let config = AppConfig::new();
+    let conn = &pool.connection.get().unwrap();
 
-    let db = match LocalDatabase::new(&config) {
+    let db = match LocalDatabase::new(&conn) {
         Ok(db) => db,
         Err(_) => return HttpResponse::InternalServerError().body("Failed to initialize database"),
     };
@@ -132,10 +130,11 @@ async fn run_indexer(pool: web::Data<ConnectionPool>) -> impl Responder {
     let config = AppConfig::new();
 
     let client = RpcClient::new(&config);
+    let conn = &pool.connection.get().unwrap();
 
-    let db = match LocalDatabase::new(&config) {
+    let db = match LocalDatabase::new(&conn) {
         Ok(db) => db,
-        Err(_) => return HttpResponse::InternalServerError().json("Failed to initialize database"),
+        Err(_) => return HttpResponse::InternalServerError().body("Failed to initialize database"),
     };
 
     let indexer = Indexer::new(client, db, config);
