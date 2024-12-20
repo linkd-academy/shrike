@@ -406,9 +406,10 @@ impl<'a> Database<'a> {
     }
 
     pub fn get_last_index(&self, table: &str) -> Result<u64> {
-        let sql = &format!("SELECT id FROM {table} WHERE id=(SELECT max(id) FROM {table})");
-        let mut stmt = self.conn.prepare(sql)?;
-        let index: u64 = stmt.query_row([], |row| row.get(0))?;
+        let sql = format!("SELECT id FROM {table} WHERE id=(SELECT max(id) FROM {table})");
+        let mut stmt = self.conn.prepare(&sql)?;
+
+        let index: u64 = stmt.query_row([], |row| row.get(0)).unwrap_or(0);
 
         Ok(index)
     }

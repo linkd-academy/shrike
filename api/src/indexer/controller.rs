@@ -7,8 +7,7 @@ use crate::indexer::db::database::Database as LocalDatabase;
 use crate::indexer::rpc::client::Client as RpcClient;
 use crate::indexer::spawn::indexer::Indexer;
 
-#[post("/v1/setup/initialize")]
-async fn initilize_indexer_setup(pool: web::Data<ConnectionPool>) -> impl Responder {
+pub async fn initilize_indexer_setup(pool: web::Data<ConnectionPool>) -> impl Responder {
     let conn = &pool.connection.get().unwrap();
 
     let db = match LocalDatabase::new(&conn) {
@@ -146,6 +145,5 @@ async fn run_indexer(pool: web::Data<ConnectionPool>) -> impl Responder {
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.service(initilize_indexer_setup);
     cfg.service(run_indexer);
 }

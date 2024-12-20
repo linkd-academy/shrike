@@ -6,11 +6,13 @@ mod shared;
 mod stat;
 mod transaction;
 
+use crate::indexer::controller::initilize_indexer_setup;
 use crate::shared::db::DB_PATH;
 use actix_cors::Cors;
 use actix_web::{http::header, web, App, HttpServer};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
+use rusqlite::Connection;
 use rusqlite::OpenFlags;
 use tokio::{task, time};
 
@@ -28,6 +30,8 @@ async fn main() -> std::io::Result<()> {
         .to_str()
         .expect("Failed to convert database path to str");
 
+    let _ = Connection::open(db_path);
+
     let manager_ro =
         SqliteConnectionManager::file(db_path).with_flags(OpenFlags::SQLITE_OPEN_READ_ONLY);
     let pool_ro = Pool::new(manager_ro).unwrap();
@@ -42,6 +46,8 @@ async fn main() -> std::io::Result<()> {
     let connection_pool_rw = web::Data::new(ConnectionPool {
         connection: pool_rw,
     });
+
+    initilize_indexer_setup(connection_pool_rw.clone()).await;
 
     task::spawn(async move {
         let mut interval = time::interval(Duration::from_secs(REFRESH_INTERVAL));
