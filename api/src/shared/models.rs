@@ -27,3 +27,15 @@ pub struct Event {
     pub eventname: String,
     pub state: serde_json::Value,
 }
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct PagedResp<T> {
+    pub list: T,
+    pub count: usize,
+}
+
+impl<T> PagedResp<T> {
+    pub fn new(list: T, count: usize) -> Self {
+        Self { list, count }
+    }
+}

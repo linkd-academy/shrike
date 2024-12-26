@@ -2,11 +2,6 @@ use crate::shared::models::{Address, Hash160};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct TransactionList {
-    pub transactions: Vec<Transaction>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
 pub struct TxDataList {
     pub address: String,
     pub as_sender: Vec<TxData>,

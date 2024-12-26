@@ -2,7 +2,7 @@ use actix_web::{get, web, HttpResponse, Responder};
 
 use crate::error::Error;
 use crate::shared::checker;
-use crate::shared::models::PaginationAndFilterParams;
+use crate::shared::models::{PagedResp, PaginationAndFilterParams};
 use crate::shared::utils::{normalize_filter, normalize_pagination};
 use crate::ConnectionPool;
 
@@ -35,18 +35,27 @@ async fn list_balance_history(
     let conn = &pool.connection.get().unwrap();
     let balance_history = internals::list_history_balance_internal(
         conn,
-        address,
-        token,
+        address.clone(),
+        token.clone(),
         page,
         per_page,
         sort_by.as_deref(),
         order.as_deref(),
-        date_init,
-        date_end,
+        date_init.clone(),
+        date_end.clone(),
     );
 
     match balance_history {
-        Ok(tx) => HttpResponse::Ok().json(tx),
+        Ok(bh) => HttpResponse::Ok().json(PagedResp::new(
+            bh,
+            internals::count_history_balance_internal(
+                conn,
+                address.clone(),
+                token.clone(),
+                date_init.clone(),
+                date_end.clone(),
+            ),
+        )),
         Err(err) => HttpResponse::Ok().json(err),
     }
 }
@@ -72,17 +81,25 @@ async fn list_token_price_history(
     let conn = &pool.connection.get().unwrap();
     let price_history = internals::list_history_price_token_internal(
         conn,
-        token,
+        token.clone(),
         page,
         per_page,
         sort_by.as_deref(),
         order.as_deref(),
-        date_init,
-        date_end,
+        date_init.clone(),
+        date_end.clone(),
     );
 
     match price_history {
-        Ok(tx) => HttpResponse::Ok().json(tx),
+        Ok(ph) => HttpResponse::Ok().json(PagedResp::new(
+            ph,
+            internals::count_history_price_token_internal(
+                conn,
+                token.clone(),
+                date_init.clone(),
+                date_end.clone(),
+            ),
+        )),
         Err(err) => HttpResponse::Ok().json(err),
     }
 }
@@ -108,17 +125,25 @@ async fn list_daily_contract_usage(
     let conn = &pool.connection.get().unwrap();
     let usage_data = internals::list_daily_contract_usage_internal(
         conn,
-        contract,
+        contract.clone(),
         page,
         per_page,
         sort_by.as_deref(),
         order.as_deref(),
-        date_init,
-        date_end,
+        date_init.clone(),
+        date_end.clone(),
     );
 
     match usage_data {
-        Ok(data) => HttpResponse::Ok().json(data),
+        Ok(ud) => HttpResponse::Ok().json(PagedResp::new(
+            ud,
+            internals::count_daily_contract_usage_internal(
+                conn,
+                contract.clone(),
+                date_init.clone(),
+                date_end.clone(),
+            ),
+        )),
         Err(err) => HttpResponse::Ok().json(err),
     }
 }

@@ -68,6 +68,24 @@ pub fn list_history_balance_internal(
     }
 }
 
+pub fn count_history_balance_internal(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    address: String,
+    token: String,
+    date_init: String,
+    date_end: String,
+) -> usize {
+    let sql = "
+        SELECT COUNT(*) 
+        FROM daily_address_balances 
+        WHERE address = ? AND token_contract = ? AND date BETWEEN ? AND ?";
+
+    conn.query_row(sql, params![address, token, date_init, date_end], |row| {
+        row.get::<_, usize>(0)
+    })
+    .unwrap_or(0)
+}
+
 pub fn list_history_price_token_internal(
     conn: &PooledConnection<SqliteConnectionManager>,
     token: String,
@@ -127,6 +145,24 @@ pub fn list_history_price_token_internal(
     }
 }
 
+pub fn count_history_price_token_internal(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    token: String,
+    date_init: String,
+    date_end: String,
+) -> usize {
+    let sql = "
+        SELECT COUNT(*)
+        FROM daily_token_price_history
+        WHERE token_contract = ? AND date BETWEEN ? AND ?
+    ";
+
+    conn.query_row(sql, params![token, date_init, date_end], |row| {
+        row.get::<_, usize>(0)
+    })
+    .unwrap_or(0)
+}
+
 pub fn list_daily_contract_usage_internal(
     conn: &PooledConnection<SqliteConnectionManager>,
     contract: String,
@@ -183,4 +219,22 @@ pub fn list_daily_contract_usage_internal(
     } else {
         Ok(daily_contract_usage)
     }
+}
+
+pub fn count_daily_contract_usage_internal(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    contract: String,
+    date_init: String,
+    date_end: String,
+) -> usize {
+    let sql = "
+        SELECT COUNT(*)
+        FROM daily_contract_usage
+        WHERE contract = ? AND date BETWEEN ? AND ?
+    ";
+
+    conn.query_row(sql, params![contract, date_init, date_end], |row| {
+        row.get::<_, usize>(0)
+    })
+    .unwrap_or(0)
 }

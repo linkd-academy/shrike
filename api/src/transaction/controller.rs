@@ -2,7 +2,7 @@ use actix_web::{get, web, HttpResponse, Responder};
 
 use crate::error::Error;
 use crate::shared::checker;
-use crate::shared::models::PaginationAndFilterParams;
+use crate::shared::models::{PagedResp, PaginationAndFilterParams};
 use crate::shared::utils::normalize_pagination;
 use crate::ConnectionPool;
 
@@ -71,7 +71,7 @@ async fn get_sender_transactions(
 
     let transactions = internals::get_sender_transactions_internal(
         conn,
-        address,
+        address.clone(),
         page,
         per_page,
         sort_by.as_deref(),
@@ -79,7 +79,10 @@ async fn get_sender_transactions(
     );
 
     match transactions {
-        Ok(txs) => HttpResponse::Ok().json(txs),
+        Ok(txs) => HttpResponse::Ok().json(PagedResp::new(
+            txs,
+            internals::count_sender_transactions_internal(conn, address.clone()),
+        )),
         Err(err) => HttpResponse::Ok().json(err),
     }
 }
@@ -107,7 +110,7 @@ async fn get_address_transfers(
 
     let transfer_list = internals::get_address_transfers_internal(
         conn,
-        address,
+        address.clone(),
         page,
         per_page,
         sort_by.as_deref(),
@@ -115,7 +118,10 @@ async fn get_address_transfers(
     );
 
     match transfer_list {
-        Ok(txs) => HttpResponse::Ok().json(txs),
+        Ok(tl) => HttpResponse::Ok().json(PagedResp::new(
+            tl,
+            internals::count_address_transfers_internal(conn, address.clone()),
+        )),
         Err(err) => HttpResponse::Ok().json(err),
     }
 }

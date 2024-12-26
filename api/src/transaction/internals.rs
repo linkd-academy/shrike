@@ -6,9 +6,7 @@ use crate::block::internals;
 use crate::error::Error;
 use crate::shared::events;
 use crate::shared::neo;
-use crate::transaction::models::{
-    Notification, State, StateValue, Transaction, TransactionList, TxDataList,
-};
+use crate::transaction::models::{Notification, State, StateValue, Transaction, TxDataList};
 
 pub fn get_transaction_internal(
     conn: &PooledConnection<SqliteConnectionManager>,
@@ -108,7 +106,7 @@ pub fn get_sender_transactions_internal(
     per_page: u32,
     sort_by: Option<&str>,
     order: Option<&str>,
-) -> Result<TransactionList, Error> {
+) -> Result<Vec<Transaction>, Error> {
     let order_clause = if let (Some(sort_by), Some(order)) = (sort_by, order) {
         let valid_columns = vec!["id"];
         if valid_columns.contains(&sort_by) {
@@ -160,11 +158,25 @@ pub fn get_sender_transactions_internal(
     }
 
     match transactions.is_empty() {
-        false => Ok(TransactionList { transactions }),
+        false => Ok(transactions),
         true => Err(Error {
             error: "No transactions for that sender.".to_string(),
         }),
     }
+}
+
+pub fn count_sender_transactions_internal(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    address: String,
+) -> usize {
+    let sql = "
+        SELECT COUNT(*)
+        FROM transactions 
+        WHERE sender = ?
+    ";
+
+    conn.query_row(sql, params![address], |row| row.get::<_, usize>(0))
+        .unwrap_or(0)
 }
 
 pub fn get_address_transfers_internal(
@@ -273,4 +285,22 @@ pub fn get_address_transfers_internal(
     } else {
         Ok(tx_list)
     }
+}
+
+pub fn count_address_transfers_internal(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    address: String,
+) -> usize {
+    let sql = "
+        SELECT COUNT(DISTINCT t.hash)
+        FROM transactions t
+        INNER JOIN transaction_notifications tn ON tn.transaction_hash = t.hash
+        INNER JOIN transaction_notification_state_values nsv ON tn.id = nsv.transaction_notification_id
+        WHERE nsv.value = ?
+    ";
+
+    let base64 = neo::address_to_base64(&address);
+
+    conn.query_row(sql, params![base64], |row| row.get::<_, usize>(0))
+        .unwrap_or(0)
 }

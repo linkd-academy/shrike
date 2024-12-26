@@ -1,7 +1,6 @@
 use actix_web::{get, web, HttpResponse, Responder};
 
 use crate::error::Error;
-use crate::transaction::models::TransactionList;
 use crate::ConnectionPool;
 
 use super::internals;
@@ -32,7 +31,7 @@ async fn get_block_transactions(
     let transactions = internals::get_block_transactions_internal(conn, id).unwrap();
 
     match transactions.is_empty() {
-        false => HttpResponse::Ok().json(TransactionList { transactions }),
+        false => HttpResponse::Ok().json(transactions),
         true => HttpResponse::Ok().json(Error {
             error: "No transactions for that block.".to_string(),
         }),
