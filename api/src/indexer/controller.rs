@@ -30,6 +30,13 @@ pub async fn initilize_indexer_setup(pool: web::Data<ConnectionPool>) -> impl Re
     if let Err(_) = db.create_witnesses_table() {
         return HttpResponse::InternalServerError().body("Failed to create witnesses table");
     }
+    if let Err(_) = db.create_sginers_table() {
+        return HttpResponse::InternalServerError().body("Failed to create signer table");
+    }
+    if let Err(_) = db.create_allowed_contracts_table() {
+        return HttpResponse::InternalServerError()
+            .body("Failed to create allowed contracts table");
+    }
     if let Err(_) = db.create_transaction_notification_table() {
         return HttpResponse::InternalServerError()
             .body("Failed to create transaction notification table");

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 
 use crate::block::models::Witness;
-use crate::transaction::models::{Notification, StateValue};
+use crate::transaction::models::{Notification, Signer, StateValue};
 
 #[derive(Deserialize, Debug, Clone)]
 pub enum NeoParam {
@@ -121,13 +121,6 @@ pub struct Execution {
     pub gasconsumed: String,
     pub stack: Vec<StateValue>,
     pub notifications: Vec<Notification>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Signer {
-    pub account: String,
-    pub scopes: String,
-    pub allowedcontracts: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone)]

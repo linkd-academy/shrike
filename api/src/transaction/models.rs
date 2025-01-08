@@ -41,7 +41,7 @@ pub struct Transaction {
     pub sysfee: String,
     pub netfee: String,
     pub valid_until: u64,
-    pub signers: String,
+    pub signers: Vec<Signer>,
     pub script: String,
     pub witnesses: Vec<Witness>,
     pub stack_result: String,
@@ -68,4 +68,11 @@ pub struct StateValue {
     #[serde(rename = "type")]
     pub _type: String,
     pub value: Option<serde_json::Value>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Signer {
+    pub account: String,
+    pub scopes: String,
+    pub allowedcontracts: Option<Vec<String>>,
 }

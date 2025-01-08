@@ -7,7 +7,9 @@ use crate::block::models::Witness;
 use crate::error::Error;
 use crate::shared::events;
 use crate::shared::neo;
-use crate::transaction::models::{Notification, State, StateValue, Transaction, TxDataList};
+use crate::transaction::models::{
+    Notification, Signer, State, StateValue, Transaction, TxDataList,
+};
 
 pub fn get_transaction_internal(
     conn: &PooledConnection<SqliteConnectionManager>,
@@ -33,9 +35,9 @@ pub fn get_transaction_internal(
                 sysfee: row.get(8)?,
                 netfee: row.get(9)?,
                 valid_until: row.get(10)?,
-                signers: row.get(11)?,
-                script: row.get(12)?,
-                stack_result: row.get(13)?,
+                script: row.get(11)?,
+                stack_result: row.get(12)?,
+                signers: Vec::new(),
                 witnesses: Vec::new(),
                 notifications: Vec::new(),
             })
@@ -65,6 +67,69 @@ pub fn get_transaction_internal(
     transaction.witnesses = witness_iter.filter_map(|witness| witness.ok()).collect();
 
     Ok(transaction)
+}
+
+pub fn get_signers(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    hash: String,
+) -> Result<Vec<Signer>, Error> {
+    let signer_sql = "SELECT id, account, scopes FROM signers WHERE transaction_id = (SELECT id FROM transactions WHERE hash = ?)";
+    let mut stmt_signer = conn.prepare(signer_sql).map_err(|err| Error {
+        error: format!("Failed to prepare signer query: {}", err),
+    })?;
+
+    let signer_iter = stmt_signer
+        .query_map([hash], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })
+        .map_err(|err| Error {
+            error: format!("Failed to execute signer query: {}", err),
+        })?;
+
+    let mut signers = Vec::new();
+    for result in signer_iter {
+        let (signer_id, account, scopes) = result.map_err(|err| Error {
+            error: format!("Failed to map signer row: {}", err),
+        })?;
+
+        signers.push(Signer {
+            account,
+            scopes,
+            allowedcontracts: get_allowed_contracts(conn, signer_id)?,
+        });
+    }
+
+    Ok(signers)
+}
+
+pub fn get_allowed_contracts(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    signer_id: i64,
+) -> Result<Option<Vec<String>>, Error> {
+    let allowed_contract_sql = "SELECT contract FROM allowed_contracts WHERE signer_id = ?";
+    let mut stmt_allowed_contract = conn.prepare(allowed_contract_sql).map_err(|err| Error {
+        error: format!("Failed to prepare allowed contracts query: {}", err),
+    })?;
+
+    let allowed_contract_iter = stmt_allowed_contract
+        .query_map([signer_id], |row| row.get::<_, String>(0))
+        .map_err(|err| Error {
+            error: format!("Failed to execute allowed contracts query: {}", err),
+        })?;
+
+    let allowed_contracts: Vec<String> = allowed_contract_iter
+        .filter_map(|result| result.ok())
+        .collect();
+
+    if allowed_contracts.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(allowed_contracts))
+    }
 }
 
 pub fn get_transaction_notifications(
@@ -174,9 +239,9 @@ pub fn get_sender_transactions_internal(
             sysfee: row.get(8).unwrap(),
             netfee: row.get(9).unwrap(),
             valid_until: row.get(10).unwrap(),
-            signers: row.get(11).unwrap(),
-            script: row.get(12).unwrap(),
-            stack_result: row.get(13).unwrap(),
+            script: row.get(11).unwrap(),
+            stack_result: row.get(12).unwrap(),
+            signers: Vec::new(),
             witnesses: Vec::new(),
             notifications: Vec::new(),
         })
@@ -258,9 +323,9 @@ pub fn get_address_transfers_internal(
             sysfee: row.get(8).unwrap(),
             netfee: row.get(9).unwrap(),
             valid_until: row.get(10).unwrap(),
-            signers: row.get(11).unwrap(),
-            script: row.get(12).unwrap(),
-            stack_result: row.get(13).unwrap(),
+            script: row.get(11).unwrap(),
+            stack_result: row.get(12).unwrap(),
+            signers: Vec::new(),
             witnesses: Vec::new(),
             notifications: Vec::new(),
         })

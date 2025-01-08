@@ -64,7 +64,7 @@ pub fn convert_transaction_result(
         sysfee: t.sysfee,
         netfee: t.netfee,
         valid_until: t.validuntilblock,
-        signers: to_string(&t.signers).unwrap(),
+        signers: t.signers,
         script: base64_to_hex(&t.script),
         witnesses: t.witnesses,
         stack_result: to_string(&stack).unwrap(),

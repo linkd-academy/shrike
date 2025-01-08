@@ -94,10 +94,38 @@ impl<'a> Database<'a> {
             sysfee              TEXT NOT NULL,
             netfee              TEXT NOT NULL,
             valid_until         INTEGER NOT NULL,
-            signers             TEXT NOT NULL,
             script              TEXT NOT NULL,
             stack_result        TEXT,
             FOREIGN KEY (block_index) REFERENCES blocks (id)
+        )",
+            [],
+        )?;
+
+        Ok(result)
+    }
+
+    pub fn create_sginers_table(&self) -> Result<usize> {
+        let result = self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS signers (
+            id                           INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_id               INTEGER NOT NULL,
+            account                      TEXT NOT NULL,
+            scopes                       TEXT NOT NULL,
+            FOREIGN KEY (transaction_id) REFERENCES transactions (id)
+        )",
+            [],
+        )?;
+
+        Ok(result)
+    }
+
+    pub fn create_allowed_contracts_table(&self) -> Result<usize> {
+        let result = self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS allowed_contracts (
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            signer_id               INTEGER NOT NULL,
+            contract                TEXT NOT NULL,
+            FOREIGN KEY (signer_id) REFERENCES signers (id)
         )",
             [],
         )?;
@@ -336,10 +364,23 @@ impl<'a> Database<'a> {
         let transaction_query = "
             INSERT INTO transactions (
                 hash, block_index, vm_state, size, version, nonce, sender, sysfee, netfee,
-                valid_until, signers, script, stack_result
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                valid_until, script, stack_result
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id";
         let mut stmt_transaction = self.conn.prepare(transaction_query)?;
+
+        let signer_query = "
+            INSERT INTO signers (
+                transaction_id, account, scopes
+            ) VALUES (?, ?, ?)
+            RETURNING id";
+        let mut stmt_signer = self.conn.prepare(signer_query)?;
+
+        let allowed_contract_query = "
+            INSERT INTO allowed_contracts (
+                signer_id, contract
+            ) VALUES (?, ?)";
+        let mut stmt_allowed_contract = self.conn.prepare(allowed_contract_query)?;
 
         let notification_query = "
             INSERT INTO transaction_notifications (
@@ -400,12 +441,24 @@ impl<'a> Database<'a> {
                     transaction.sysfee,
                     transaction.netfee,
                     transaction.valid_until,
-                    transaction.signers,
                     transaction.script,
                     transaction.stack_result,
                 ],
                 |row| row.get(0),
             )?;
+
+            for signer in transaction.signers {
+                let signer_id: i64 = stmt_signer.query_row(
+                    params![transaction_id, signer.account, signer.scopes,],
+                    |row| row.get(0),
+                )?;
+
+                if let Some(allowed_contracts) = signer.allowedcontracts {
+                    for contract in allowed_contracts {
+                        stmt_allowed_contract.execute(params![signer_id, contract,])?;
+                    }
+                }
+            }
 
             for witness in transaction.witnesses {
                 stmt_witness.execute(params![

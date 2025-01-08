@@ -27,6 +27,12 @@ async fn get_transaction(
         Err(err) => return HttpResponse::NotFound().json(err),
     };
 
+    let signers = match internals::get_signers(conn, hash.clone()) {
+        Ok(signers) => signers,
+        Err(err) => return HttpResponse::InternalServerError().json(err),
+    };
+    transaction.signers = signers;
+
     let notifications = match internals::get_transaction_notifications(conn, hash.clone()) {
         Ok(notifs) => notifs,
         Err(err) => return HttpResponse::InternalServerError().json(err),
