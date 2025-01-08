@@ -3,6 +3,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
 
 use crate::block::internals;
+use crate::block::models::Witness;
 use crate::error::Error;
 use crate::shared::events;
 use crate::shared::neo;
@@ -13,33 +14,57 @@ pub fn get_transaction_internal(
     hash: String,
 ) -> Result<Transaction, Error> {
     let sql = "SELECT * FROM transactions WHERE hash = ?";
-    let mut stmt = conn.prepare(sql).unwrap();
+    let mut stmt = conn.prepare(sql).map_err(|err| Error {
+        error: format!("Failed to prepare transaction query: {}", err),
+    })?;
 
-    let transaction = stmt.query_row([hash], |row| {
-        Ok(Transaction {
-            timestamp: 0,
-            index: row.get(0)?,
-            hash: row.get(1)?,
-            block_index: row.get(2)?,
-            vm_state: row.get(3)?,
-            size: row.get(4)?,
-            version: row.get(5)?,
-            nonce: row.get(6)?,
-            sender: row.get(7)?,
-            sysfee: row.get(8)?,
-            netfee: row.get(9)?,
-            valid_until: row.get(10)?,
-            signers: row.get(11)?,
-            script: row.get(12)?,
-            witnesses: row.get(13)?,
-            stack_result: row.get(14)?,
-            notifications: Vec::new(),
+    let transaction_result = stmt
+        .query_row([hash], |row| {
+            Ok(Transaction {
+                timestamp: 0, // Ajustar se necessário
+                index: row.get(0)?,
+                hash: row.get(1)?,
+                block_index: row.get(2)?,
+                vm_state: row.get(3)?,
+                size: row.get(4)?,
+                version: row.get(5)?,
+                nonce: row.get(6)?,
+                sender: row.get(7)?,
+                sysfee: row.get(8)?,
+                netfee: row.get(9)?,
+                valid_until: row.get(10)?,
+                signers: row.get(11)?,
+                script: row.get(12)?,
+                stack_result: row.get(13)?,
+                witnesses: Vec::new(),
+                notifications: Vec::new(),
+            })
         })
-    });
+        .map_err(|err| Error {
+            error: format!("Transaction does not exist: {}", err),
+        })?;
 
-    transaction.map_err(|_| Error {
-        error: "Transaction does not exist.".to_string(),
-    })
+    let mut transaction = transaction_result;
+
+    let witness_sql = "SELECT invocation, verification FROM witnesses WHERE transaction_id = ?";
+    let mut stmt_witness = conn.prepare(witness_sql).map_err(|err| Error {
+        error: format!("Failed to prepare witness query: {}", err),
+    })?;
+
+    let witness_iter = stmt_witness
+        .query_map([transaction.index], |row| {
+            Ok(Witness {
+                invocation: row.get(0)?,
+                verification: row.get(1)?,
+            })
+        })
+        .map_err(|err| Error {
+            error: format!("Failed to query witnesses: {}", err),
+        })?;
+
+    transaction.witnesses = witness_iter.filter_map(|witness| witness.ok()).collect();
+
+    Ok(transaction)
 }
 
 pub fn get_transaction_notifications(
@@ -151,8 +176,8 @@ pub fn get_sender_transactions_internal(
             valid_until: row.get(10).unwrap(),
             signers: row.get(11).unwrap(),
             script: row.get(12).unwrap(),
-            witnesses: row.get(13).unwrap(),
-            stack_result: row.get(14).unwrap(),
+            stack_result: row.get(13).unwrap(),
+            witnesses: Vec::new(),
             notifications: Vec::new(),
         })
     }
@@ -235,8 +260,8 @@ pub fn get_address_transfers_internal(
             valid_until: row.get(10).unwrap(),
             signers: row.get(11).unwrap(),
             script: row.get(12).unwrap(),
-            witnesses: row.get(13).unwrap(),
-            stack_result: row.get(14).unwrap(),
+            stack_result: row.get(13).unwrap(),
+            witnesses: Vec::new(),
             notifications: Vec::new(),
         })
     }

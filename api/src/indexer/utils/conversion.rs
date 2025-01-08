@@ -38,7 +38,7 @@ pub fn convert_block_result(r: BlockResult, a: &BlockAppLogResult) -> Block {
         next_consensus: r.nextconsensus,
         reward: reward_as_float,
         reward_receiver: address,
-        witnesses: to_string(&r.witnesses).unwrap(),
+        witnesses: r.witnesses,
     }
 }
 
@@ -66,7 +66,7 @@ pub fn convert_transaction_result(
         valid_until: t.validuntilblock,
         signers: to_string(&t.signers).unwrap(),
         script: base64_to_hex(&t.script),
-        witnesses: to_string(&t.witnesses).unwrap(),
+        witnesses: t.witnesses,
         stack_result: to_string(&stack).unwrap(),
         notifications: notifs.clone(),
     }

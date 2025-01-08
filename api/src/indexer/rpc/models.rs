@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 
+use crate::block::models::Witness;
 use crate::transaction::models::{Notification, StateValue};
 
 #[derive(Deserialize, Debug, Clone)]
@@ -120,12 +121,6 @@ pub struct Execution {
     pub gasconsumed: String,
     pub stack: Vec<StateValue>,
     pub notifications: Vec<Notification>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Witness {
-    pub invocation: String,
-    pub verification: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -12,5 +12,11 @@ pub struct Block {
     pub next_consensus: String,
     pub reward: f64,
     pub reward_receiver: String,
-    pub witnesses: String,
+    pub witnesses: Vec<Witness>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Witness {
+    pub invocation: String,
+    pub verification: String,
 }

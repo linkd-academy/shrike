@@ -55,8 +55,24 @@ impl<'a> Database<'a> {
             speaker             INTEGER NOT NULL,
             next_consensus      TEXT NOT NULL,
             reward              FLOAT NOT NULL,
-            reward_receiver     TEXT NOT NULL,
-            witnesses           TEXT NOT NULL
+            reward_receiver     TEXT NOT NULL
+        )",
+            [],
+        )?;
+
+        Ok(result)
+    }
+
+    pub fn create_witnesses_table(&self) -> Result<usize> {
+        let result = self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS witnesses (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            block_index         INTEGER NULL,
+            transaction_id      INTEGER NULL,
+            invocation          TEXT NOT NULL,
+            verification        TEXT NOT NULL,
+            FOREIGN KEY (block_index) REFERENCES blocks (id),
+            FOREIGN KEY (transaction_id) REFERENCES transactions (id)
         )",
             [],
         )?;
@@ -80,7 +96,6 @@ impl<'a> Database<'a> {
             valid_until         INTEGER NOT NULL,
             signers             TEXT NOT NULL,
             script              TEXT NOT NULL,
-            witnesses           TEXT NOT NULL,
             stack_result        TEXT,
             FOREIGN KEY (block_index) REFERENCES blocks (id)
         )",
@@ -307,31 +322,23 @@ impl<'a> Database<'a> {
 
         let block_query = "
             INSERT INTO blocks (
-                hash, size, version, merkle_root, time, nonce, speaker, next_consensus, reward, reward_receiver, witnesses
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                hash, size, version, merkle_root, time, nonce, speaker, next_consensus, reward, reward_receiver
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id";
         let mut stmt_block = self.conn.prepare(block_query)?;
 
-        for block in blocks {
-            stmt_block.execute(params![
-                block.hash,
-                block.size,
-                block.version,
-                block.merkle_root,
-                block.time,
-                block.nonce,
-                block.speaker,
-                block.next_consensus,
-                block.reward,
-                block.reward_receiver,
-                block.witnesses,
-            ])?;
-        }
+        let witness_query = "
+            INSERT INTO witnesses (
+                block_index, transaction_id, invocation, verification
+            ) VALUES (?, ?, ?, ?)";
+        let mut stmt_witness = self.conn.prepare(witness_query)?;
 
         let transaction_query = "
             INSERT INTO transactions (
                 hash, block_index, vm_state, size, version, nonce, sender, sysfee, netfee,
-                valid_until, signers, script, witnesses, stack_result
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                valid_until, signers, script, stack_result
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id";
         let mut stmt_transaction = self.conn.prepare(transaction_query)?;
 
         let notification_query = "
@@ -353,23 +360,61 @@ impl<'a> Database<'a> {
             ) VALUES (?, ?, ?)";
         let mut stmt_state = self.conn.prepare(state_query)?;
 
+        for block in blocks {
+            let block_id: i64 = stmt_block.query_row(
+                params![
+                    block.hash,
+                    block.size,
+                    block.version,
+                    block.merkle_root,
+                    block.time,
+                    block.nonce,
+                    block.speaker,
+                    block.next_consensus,
+                    block.reward,
+                    block.reward_receiver,
+                ],
+                |row| row.get(0),
+            )?;
+
+            for witness in block.witnesses {
+                stmt_witness.execute(params![
+                    block_id,
+                    None::<i64>,
+                    witness.invocation,
+                    witness.verification,
+                ])?;
+            }
+        }
+
         for transaction in transactions {
-            stmt_transaction.execute(params![
-                transaction.hash,
-                transaction.block_index,
-                transaction.vm_state,
-                transaction.size,
-                transaction.version,
-                transaction.nonce,
-                transaction.sender,
-                transaction.sysfee,
-                transaction.netfee,
-                transaction.valid_until,
-                transaction.signers,
-                transaction.script,
-                transaction.witnesses,
-                transaction.stack_result,
-            ])?;
+            let transaction_id: i64 = stmt_transaction.query_row(
+                params![
+                    transaction.hash,
+                    transaction.block_index,
+                    transaction.vm_state,
+                    transaction.size,
+                    transaction.version,
+                    transaction.nonce,
+                    transaction.sender,
+                    transaction.sysfee,
+                    transaction.netfee,
+                    transaction.valid_until,
+                    transaction.signers,
+                    transaction.script,
+                    transaction.stack_result,
+                ],
+                |row| row.get(0),
+            )?;
+
+            for witness in transaction.witnesses {
+                stmt_witness.execute(params![
+                    None::<i64>,
+                    transaction_id,
+                    witness.invocation,
+                    witness.verification,
+                ])?;
+            }
 
             for notification in transaction.notifications.iter() {
                 let notification_id: i64 = stmt_notification.query_row(
@@ -381,8 +426,9 @@ impl<'a> Database<'a> {
                     ],
                     |row| row.get(0),
                 )?;
+
                 stmt_daily_contract_usage
-                    .execute(params![transaction.timestamp, notification.contract,])?;
+                    .execute(params![transaction.timestamp, notification.contract])?;
 
                 for state_value in notification.state.value.iter() {
                     stmt_state.execute(params![

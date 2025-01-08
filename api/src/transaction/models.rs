@@ -1,3 +1,4 @@
+use crate::block::models::Witness;
 use crate::shared::models::{Address, Hash160};
 use serde::{Deserialize, Serialize};
 
@@ -42,7 +43,7 @@ pub struct Transaction {
     pub valid_until: u64,
     pub signers: String,
     pub script: String,
-    pub witnesses: String,
+    pub witnesses: Vec<Witness>,
     pub stack_result: String,
     pub notifications: Vec<Notification>,
 }

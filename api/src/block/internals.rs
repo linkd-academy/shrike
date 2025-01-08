@@ -1,7 +1,7 @@
 use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
 
-use super::models::Block;
+use super::models::{Block, Witness};
 use crate::error::Error;
 use crate::shared::checker;
 use crate::transaction::models::Transaction;
@@ -13,28 +13,53 @@ pub fn get_block_internal(
     match path.trim().parse::<u64>() {
         Ok(id) => {
             let sql = "SELECT * FROM blocks WHERE id = ?";
-            let mut stmt = conn.prepare(sql).unwrap();
+            let mut stmt = conn.prepare(sql).map_err(|err| Error {
+                error: format!("Failed to prepare block query: {}", err),
+            })?;
 
-            let result = stmt.query_row([id], |row| {
-                Ok(Block {
-                    index: row.get(0)?,
-                    hash: row.get(1)?,
-                    size: row.get(2)?,
-                    version: row.get(3)?,
-                    merkle_root: row.get(4)?,
-                    time: row.get(5)?,
-                    nonce: row.get(6)?,
-                    speaker: row.get(7)?,
-                    next_consensus: row.get(8)?,
-                    reward: row.get(9)?,
-                    reward_receiver: row.get(10)?,
-                    witnesses: row.get(11)?,
+            let block_result = stmt
+                .query_row([id], |row| {
+                    Ok(Block {
+                        index: row.get(0)?,
+                        hash: row.get(1)?,
+                        size: row.get(2)?,
+                        version: row.get(3)?,
+                        merkle_root: row.get(4)?,
+                        time: row.get(5)?,
+                        nonce: row.get(6)?,
+                        speaker: row.get(7)?,
+                        next_consensus: row.get(8)?,
+                        reward: row.get(9)?,
+                        reward_receiver: row.get(10)?,
+                        witnesses: Vec::new(),
+                    })
                 })
-            });
+                .map_err(|err| Error {
+                    error: format!("Block does not exist: {}", err),
+                })?;
 
-            result.map_err(|_| Error {
-                error: "Block does not exist.".to_string(),
-            })
+            let mut block = block_result;
+
+            let witness_sql =
+                "SELECT invocation, verification FROM witnesses WHERE block_index = ?";
+            let mut stmt_witness = conn.prepare(witness_sql).map_err(|err| Error {
+                error: format!("Failed to prepare witness query: {}", err),
+            })?;
+
+            let witness_iter = stmt_witness
+                .query_map([block.index], |row| {
+                    Ok(Witness {
+                        invocation: row.get(0)?,
+                        verification: row.get(1)?,
+                    })
+                })
+                .map_err(|err| Error {
+                    error: format!("Failed to query witnesses: {}", err),
+                })?;
+
+            block.witnesses = witness_iter.filter_map(|witness| witness.ok()).collect();
+
+            Ok(block)
         }
         Err(_) => {
             if !checker::is_neo_txid_hash(&path) {
@@ -44,28 +69,53 @@ pub fn get_block_internal(
             }
 
             let sql = "SELECT * FROM blocks WHERE hash = ?";
-            let mut stmt = conn.prepare(sql).unwrap();
+            let mut stmt = conn.prepare(sql).map_err(|err| Error {
+                error: format!("Failed to prepare block query by hash: {}", err),
+            })?;
 
-            let result = stmt.query_row([path], |row| {
-                Ok(Block {
-                    index: row.get(0)?,
-                    hash: row.get(1)?,
-                    size: row.get(2)?,
-                    version: row.get(3)?,
-                    merkle_root: row.get(4)?,
-                    time: row.get(5)?,
-                    nonce: row.get(6)?,
-                    speaker: row.get(7)?,
-                    next_consensus: row.get(8)?,
-                    reward: row.get(9)?,
-                    reward_receiver: row.get(10)?,
-                    witnesses: row.get(11)?,
+            let block_result = stmt
+                .query_row([path], |row| {
+                    Ok(Block {
+                        index: row.get(0)?,
+                        hash: row.get(1)?,
+                        size: row.get(2)?,
+                        version: row.get(3)?,
+                        merkle_root: row.get(4)?,
+                        time: row.get(5)?,
+                        nonce: row.get(6)?,
+                        speaker: row.get(7)?,
+                        next_consensus: row.get(8)?,
+                        reward: row.get(9)?,
+                        reward_receiver: row.get(10)?,
+                        witnesses: Vec::new(),
+                    })
                 })
-            });
+                .map_err(|err| Error {
+                    error: format!("Block does not exist: {}", err),
+                })?;
 
-            result.map_err(|_| Error {
-                error: "Block does not exist.".to_string(),
-            })
+            let mut block = block_result;
+
+            let witness_sql =
+                "SELECT invocation, verification FROM witnesses WHERE block_index = ?";
+            let mut stmt_witness = conn.prepare(witness_sql).map_err(|err| Error {
+                error: format!("Failed to prepare witness query: {}", err),
+            })?;
+
+            let witness_iter = stmt_witness
+                .query_map([block.index], |row| {
+                    Ok(Witness {
+                        invocation: row.get(0)?,
+                        verification: row.get(1)?,
+                    })
+                })
+                .map_err(|err| Error {
+                    error: format!("Failed to query witnesses: {}", err),
+                })?;
+
+            block.witnesses = witness_iter.filter_map(|witness| witness.ok()).collect();
+
+            Ok(block)
         }
     }
 }
@@ -132,8 +182,8 @@ pub fn get_block_transactions_internal(
                     valid_until: row.get(10).unwrap(),
                     signers: row.get(11).unwrap(),
                     script: row.get(12).unwrap(),
-                    witnesses: row.get(13).unwrap(),
-                    stack_result: row.get(14).unwrap(),
+                    stack_result: row.get(13).unwrap(),
+                    witnesses: Vec::new(),
                     notifications: Vec::new(),
                 })
             }
@@ -168,8 +218,8 @@ pub fn get_block_transactions_internal(
                     valid_until: row.get(10).unwrap(),
                     signers: row.get(11).unwrap(),
                     script: row.get(12).unwrap(),
-                    witnesses: row.get(13).unwrap(),
-                    stack_result: row.get(14).unwrap(),
+                    stack_result: row.get(13).unwrap(),
+                    witnesses: Vec::new(),
                     notifications: Vec::new(),
                 })
             }
