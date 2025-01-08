@@ -10,14 +10,18 @@ async fn get_block(pool: web::Data<ConnectionPool>, path: web::Path<String>) -> 
     let conn = &pool.connection.get().unwrap();
     let id = path.into_inner();
 
-    let result = internals::get_block_internal(conn, id);
+    let mut block = match internals::get_block_internal(conn, id) {
+        Ok(blc) => blc,
+        Err(err) => return HttpResponse::NotFound().json(err),
+    };
 
-    match result {
-        Ok(block) => HttpResponse::Ok().json(block),
-        Err(_) => HttpResponse::Ok().json(Error {
-            error: "Block does not exist.".to_string(),
-        }),
-    }
+    let witnesses = match internals::get_witnesses(conn, block.index.clone()) {
+        Ok(witnesses) => witnesses,
+        Err(err) => return HttpResponse::InternalServerError().json(err),
+    };
+    block.witnesses = witnesses;
+
+    HttpResponse::Ok().json(block)
 }
 
 #[get("/v1/block/{id}/transactions")]

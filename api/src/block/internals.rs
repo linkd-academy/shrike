@@ -38,28 +38,7 @@ pub fn get_block_internal(
                     error: format!("Block does not exist: {}", err),
                 })?;
 
-            let mut block = block_result;
-
-            let witness_sql =
-                "SELECT invocation, verification FROM witnesses WHERE block_index = ?";
-            let mut stmt_witness = conn.prepare(witness_sql).map_err(|err| Error {
-                error: format!("Failed to prepare witness query: {}", err),
-            })?;
-
-            let witness_iter = stmt_witness
-                .query_map([block.index], |row| {
-                    Ok(Witness {
-                        invocation: row.get(0)?,
-                        verification: row.get(1)?,
-                    })
-                })
-                .map_err(|err| Error {
-                    error: format!("Failed to query witnesses: {}", err),
-                })?;
-
-            block.witnesses = witness_iter.filter_map(|witness| witness.ok()).collect();
-
-            Ok(block)
+            Ok(block_result)
         }
         Err(_) => {
             if !checker::is_neo_txid_hash(&path) {
@@ -94,30 +73,36 @@ pub fn get_block_internal(
                     error: format!("Block does not exist: {}", err),
                 })?;
 
-            let mut block = block_result;
-
-            let witness_sql =
-                "SELECT invocation, verification FROM witnesses WHERE block_index = ?";
-            let mut stmt_witness = conn.prepare(witness_sql).map_err(|err| Error {
-                error: format!("Failed to prepare witness query: {}", err),
-            })?;
-
-            let witness_iter = stmt_witness
-                .query_map([block.index], |row| {
-                    Ok(Witness {
-                        invocation: row.get(0)?,
-                        verification: row.get(1)?,
-                    })
-                })
-                .map_err(|err| Error {
-                    error: format!("Failed to query witnesses: {}", err),
-                })?;
-
-            block.witnesses = witness_iter.filter_map(|witness| witness.ok()).collect();
-
-            Ok(block)
+            Ok(block_result)
         }
     }
+}
+
+pub fn get_witnesses(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    block_index: u64,
+) -> Result<Vec<Witness>, Error> {
+    let witness_sql = "SELECT invocation, verification FROM witnesses WHERE block_index = ?";
+    let mut stmt_witness = conn.prepare(witness_sql).map_err(|err| Error {
+        error: format!("Failed to prepare witness query: {}", err),
+    })?;
+
+    let witness_iter = stmt_witness
+        .query_map([block_index], |row| {
+            Ok(Witness {
+                invocation: row.get(0)?,
+                verification: row.get(1)?,
+            })
+        })
+        .map_err(|err| Error {
+            error: format!("Failed to query witnesses: {}", err),
+        })?;
+
+    let witnesses: Vec<Witness> = witness_iter
+        .filter_map(|witness| witness.ok()) // Ignorar erros individuais
+        .collect();
+
+    Ok(witnesses)
 }
 
 pub fn get_block_time(

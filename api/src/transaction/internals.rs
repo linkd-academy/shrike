@@ -46,15 +46,20 @@ pub fn get_transaction_internal(
             error: format!("Transaction does not exist: {}", err),
         })?;
 
-    let mut transaction = transaction_result;
+    Ok(transaction_result)
+}
 
-    let witness_sql = "SELECT invocation, verification FROM witnesses WHERE transaction_id = ?";
-    let mut stmt_witness = conn.prepare(witness_sql).map_err(|err| Error {
+pub fn get_witnesses(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    hash: String,
+) -> Result<Vec<Witness>, Error> {
+    let witness_sql = "SELECT invocation, verification FROM witnesses WHERE transaction_id = (SELECT id FROM transactions WHERE hash = ?)";
+    let mut stmt = conn.prepare(witness_sql).map_err(|err| Error {
         error: format!("Failed to prepare witness query: {}", err),
     })?;
 
-    let witness_iter = stmt_witness
-        .query_map([transaction.index], |row| {
+    let witness_iter = stmt
+        .query_map([hash], |row| {
             Ok(Witness {
                 invocation: row.get(0)?,
                 verification: row.get(1)?,
@@ -64,9 +69,11 @@ pub fn get_transaction_internal(
             error: format!("Failed to query witnesses: {}", err),
         })?;
 
-    transaction.witnesses = witness_iter.filter_map(|witness| witness.ok()).collect();
+    let witnesses: Vec<Witness> = witness_iter
+        .filter_map(|witness| witness.ok()) // Ignorar erros individuais
+        .collect();
 
-    Ok(transaction)
+    Ok(witnesses)
 }
 
 pub fn get_signers(
