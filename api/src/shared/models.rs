@@ -17,8 +17,9 @@ pub struct PaginationAndFilterParams {
     pub order: Option<String>,   // "asc" or "desc"
     pub sort_by: Option<String>, // Column to order
 
-    pub date_init: Option<String>, // Filter date init
-    pub date_end: Option<String>,  // Filter date end
+    pub date_init: Option<String>,    // Filter date init
+    pub date_end: Option<String>,     // Filter date end
+    pub with_transfers: Option<bool>, // Filter with transfers
 }
 
 #[derive(Serialize, Deserialize, Clone)]

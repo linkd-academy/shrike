@@ -84,6 +84,7 @@ async fn get_sender_transactions(
     let transactions = internals::get_sender_transactions_internal(
         conn,
         address.clone(),
+        query_parameter.with_transfers.unwrap_or(false),
         page,
         per_page,
         sort_by.as_deref(),

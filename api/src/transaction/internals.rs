@@ -199,6 +199,7 @@ pub fn get_notification_state_values(
 pub fn get_sender_transactions_internal(
     conn: &PooledConnection<SqliteConnectionManager>,
     address: String,
+    with_transfers: bool,
     page: u32,
     per_page: u32,
     sort_by: Option<&str>,
@@ -216,14 +217,22 @@ pub fn get_sender_transactions_internal(
     } else {
         String::new()
     };
+    let with_transfer_clause = if (!with_transfers) {
+        format!("AND (tn.event_name != 'Transfer' OR tn.id IS NULL)")
+    } else {
+        String::new()
+    };
 
     let sql = format!(
         "SELECT *
-        FROM transactions 
+        FROM transactions t
+        LEFT JOIN transaction_notifications tn ON tn.transaction_hash = t.hash
         WHERE sender = ? 
         {}
+        GROUP BY t.hash
+        {}
         LIMIT ? OFFSET ?",
-        order_clause
+        with_transfer_clause, order_clause
     );
     let mut stmt = conn.prepare(sql.as_str()).unwrap();
 
@@ -302,7 +311,7 @@ pub fn get_address_transfers_internal(
         FROM transactions t
         INNER JOIN transaction_notifications tn ON tn.transaction_hash = t.hash
         INNER JOIN transaction_notification_state_values nsv ON tn.id = nsv.transaction_notification_id
-        WHERE nsv.value = ? 
+        WHERE nsv.value = ? AND tn.event_name = 'Transfer'
         GROUP BY t.hash
         {} LIMIT ? OFFSET ?",
         order_clause
