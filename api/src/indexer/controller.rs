@@ -6,6 +6,8 @@ use crate::indexer::config::AppConfig;
 use crate::indexer::rpc::client::Client as RpcClient;
 use crate::indexer::rpc::database::Database as LocalDatabase;
 use crate::indexer::spawn::indexer::Indexer;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 pub async fn initilize_indexer_setup(pool: web::Data<ConnectionPool>) -> impl Responder {
     let conn = &pool.connection.get().unwrap();
@@ -134,8 +136,17 @@ pub async fn initilize_indexer_setup(pool: web::Data<ConnectionPool>) -> impl Re
     HttpResponse::Ok().json(true)
 }
 
+static INDEXER_RUNNING: AtomicBool = AtomicBool::new(false);
+
 #[post("/v1/indexer/run")]
 async fn run_indexer(pool: web::Data<ConnectionPool>) -> impl Responder {
+    if INDEXER_RUNNING
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return HttpResponse::Conflict().body("Indexer is already running");
+    }
+
     let config = AppConfig::new();
 
     let client = RpcClient::new(&config);
@@ -143,14 +154,19 @@ async fn run_indexer(pool: web::Data<ConnectionPool>) -> impl Responder {
 
     let db = match LocalDatabase::new(&conn) {
         Ok(db) => db,
-        Err(_) => return HttpResponse::InternalServerError().body("Failed to initialize database"),
+        Err(_) => {
+            INDEXER_RUNNING.store(false, Ordering::SeqCst);
+            return HttpResponse::InternalServerError().body("Failed to initialize database");
+        }
     };
 
     let indexer = Indexer::new(client, db, config);
     if let Err(_) = indexer.run().await {
+        INDEXER_RUNNING.store(false, Ordering::SeqCst);
         return HttpResponse::InternalServerError().json("Failed to run indexer");
     }
 
+    INDEXER_RUNNING.store(false, Ordering::SeqCst);
     HttpResponse::Ok().json(true)
 }
 
