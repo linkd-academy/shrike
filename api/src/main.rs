@@ -7,6 +7,7 @@ mod stat;
 mod transaction;
 
 use crate::indexer::controller::initilize_indexer_setup;
+use crate::shared::config::Config;
 use crate::shared::db::DB_PATH;
 use actix_cors::Cors;
 use actix_web::{http::header, web, App, HttpServer};
@@ -26,6 +27,8 @@ pub struct ConnectionPool {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let config = Config::new().expect("Failed to load configuration");
+
     let db_path = DB_PATH
         .to_str()
         .expect("Failed to convert database path to str");
@@ -58,7 +61,7 @@ async fn main() -> std::io::Result<()> {
         }
     });
 
-    println!("Opening to requests on http://0.0.0.0:8080.");
+    println!("Opening to requests on http://0.0.0.0:{}.", config.api_port);
 
     HttpServer::new(move || {
         let cors = Cors::default()
@@ -76,7 +79,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(connection_pool_rw.clone())
             .configure(indexer::controller::config)
     })
-    .bind(("0.0.0.0", 8080))?
+    .bind(("0.0.0.0", config.api_port))?
     .run()
     .await
 }

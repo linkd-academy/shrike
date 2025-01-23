@@ -1,0 +1,6 @@
+[server]
+port = 8080
+
+[rpc]
+#base_url = "https://rpc10.n3.nspcc.ru:10331" 
+base_url = "http://localhost:50012"

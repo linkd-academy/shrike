@@ -1,10 +1,5 @@
-use crate::shared::db::DB_PATH;
-
 #[derive(Debug)]
 pub struct AppConfig {
-    pub test_db: bool,
-    pub db_path: String,
-    pub node_path: String,
     pub node_version: String,
     pub log_level: String,
     pub batch_size: u64,
@@ -15,13 +10,6 @@ pub struct AppConfig {
 impl AppConfig {
     pub fn new() -> Self {
         Self {
-            test_db: false,
-            db_path: DB_PATH
-                .to_str()
-                .expect("Failed to convert path")
-                .to_string(),
-            // node_path: String::from("http://localhost:10332"),
-            node_path: String::from("http://localhost:50012"),
             node_version: String::from("v0.106.3"),
             log_level: String::from("info"),
             batch_size: 25,

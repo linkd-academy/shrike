@@ -149,7 +149,7 @@ async fn run_indexer(pool: web::Data<ConnectionPool>) -> impl Responder {
 
     let config = AppConfig::new();
 
-    let client = RpcClient::new(&config);
+    let client = RpcClient::new();
     let conn = &pool.connection.get().unwrap();
 
     let db = match LocalDatabase::new(&conn) {

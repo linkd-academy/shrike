@@ -1,7 +1,7 @@
 use anyhow::Result;
 use reqwest::Client as ReqwestClient;
 
-use crate::indexer::config::AppConfig;
+use crate::shared::config::Config;
 
 use super::method::{
     GetApplicationLog, GetBlock, GetBlockCount, InvokeFunction, InvokeFunctionHistoric, RpcMethod,
@@ -17,10 +17,11 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(config: &AppConfig) -> Self {
+    pub fn new() -> Self {
+        let config = Config::new().expect("Failed to load configuration");
         Self {
             client: ReqwestClient::new(),
-            base_url: config.node_path.clone(),
+            base_url: config.rpc_base_url.clone(),
         }
     }
 
