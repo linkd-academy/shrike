@@ -87,10 +87,7 @@ impl Client {
         Ok(response)
     }
 
-    pub async fn get_application_log<T: serde::de::DeserializeOwned>(
-        &self,
-        hash: &str,
-    ) -> Result<T> {
+    async fn get_application_log<T: serde::de::DeserializeOwned>(&self, hash: &str) -> Result<T> {
         let app_log = self
             .send_request(GetApplicationLog {
                 hash: hash.to_string(),
@@ -149,6 +146,21 @@ impl Client {
             state_root_or_block,
             script_hash.to_string(),
             "balanceOf".to_string(),
+            args,
+        )
+        .await
+    }
+
+    pub async fn get_candidates_of_historic(
+        &self,
+        state_root_or_block: u64,
+    ) -> Result<Execution, ClientError> {
+        let args = vec![];
+
+        self.invoke_function_historic(
+            state_root_or_block,
+            "0xef4073a0f2b305a38ec4050e4d3d28bc40ea63f5".to_string(),
+            "getCandidates".to_string(),
             args,
         )
         .await

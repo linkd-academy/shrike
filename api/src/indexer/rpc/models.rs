@@ -65,6 +65,7 @@ pub struct BlockResult {
     pub size: u32,
     pub version: u8,
     pub merkleroot: String,
+    pub previousblockhash: String,
     pub time: u64,
     pub nonce: String,
     pub index: u64,
@@ -116,6 +117,8 @@ pub struct Execution {
     pub trigger: String,
     #[serde(default)]
     pub vmstate: String,
+    #[serde(default)]
+    pub state: String,
     #[serde(default)]
     pub exception: Option<String>,
     pub gasconsumed: String,
